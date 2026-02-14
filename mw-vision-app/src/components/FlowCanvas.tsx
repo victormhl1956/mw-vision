@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -85,7 +85,7 @@ export default function FlowCanvas() {
   )
 
   // Update nodes when agents change
-  useMemo(() => {
+  useEffect(() => {
     setNodes((nds) =>
       nds.map((node) => {
         const agent = agents.find((a) => a.id === node.id)
