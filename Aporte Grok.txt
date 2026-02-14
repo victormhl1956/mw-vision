@@ -1,0 +1,255 @@
+# MW-VISION  
+Visual Command Center for Multi-Agent AI Development  
+Executive Summary  
+
+**Document Version:** 2.1  
+**Date:** February 14, 2026  
+**Company:** MindWareHouse  
+**Prepared by:** Strategic & Product Division  
+**Classification:** Internal – For implementation teams & early partners
+
+───────────────────────────────────────────────────────────────────────────────
+
+## 1. Positioning & Core Promise
+
+**Tagline**  
+The Visual Studio for AI Agents
+
+**One-sentence pitch**  
+MW-Vision es el primer escritorio visual nativo que convierte la orquestación caótica de agentes multi-modelo en un **command center** transparente, intervenible en tiempo real, móvil y con protección IP integrada (Hydra Protocol v2).
+
+**Diferenciador principal 2026**  
+Ninguna herramienta actual ofrece al mismo tiempo:  
+• Gráficos React Flow en tiempo real + intervención manual mid-execution  
+• Mobile PWA con Tailscale (control desde cualquier lugar)  
+• Cost Preview antes de ejecutar + budget gates automáticos  
+• Hydra v2 (fragmentación + steganografía ligera + reensamblado local opcional)  
+• Open-core + Starter tier $29/mes para capturar indies rápido
+
+───────────────────────────────────────────────────────────────────────────────
+
+## 2. Problema que resolvemos (2026 snapshot)
+
+Desarrolladores y equipos AI-first están quemando presupuesto y perdiendo control:  
+• Crews que entran en loops infinitos (ej: $340 en 3 horas sin darse cuenta)  
+• Modelos baratos (DeepSeek, Qwen) bloqueados por miedo a leakage de IP  
+• Falta de visibilidad: ¿qué está haciendo cada agente AHORA?  
+• Imposible supervisar overnight jobs desde móvil durante Uber / familia / sueño  
+• Ninguna estandarización en empresas medianas → shadow AI por todos lados
+
+MW-Vision cierra ese gap con **visibilidad + control + protección + economía**.
+
+───────────────────────────────────────────────────────────────────────────────
+
+## 3. Las Cuatro Vistas Principales
+
+| Vista          | Propósito principal                              | Casos de uso estrella                              | Tech clave                     |
+|----------------|──────────────────────────────────────────────────|────────────────────────────────────────────────────|────────────────────────────────|
+| Flow View      | Ver el flujo de datos y decisiones en vivo       | Detectar bottlenecks, reasignar agente mid-task    | @xyflow/react + animated edges |
+| Team View      | Dashboard de “equipo” de agentes                 | Ver costo acumulado por agente, health status      | Agent cards + Recharts         |
+| Chat View      | Lanzar, pausar, inspeccionar vía lenguaje natural| “Run bug_hunter on auth.py”, “Pause Claude tasks” | Natural language → structured  |
+| Blueprint View | Mapa arquitectónico + clasificación de código   | One-click GitHub import → auto clasificación       | AST parsing + dependency graph |
+
+───────────────────────────────────────────────────────────────────────────────
+
+## 4. Capacidades Diferenciadoras Clave
+
+1. **Hydra Protocol v2** (patent-pending)  
+   - Fragmenta código sensible  
+   - Aplica renombrado + steganografía en comentarios  
+   - Rota esquemas cada ~50 requests  
+   - Reensamblado local con Ollama / Qwen2.5-32B (opcional)  
+   → Permite usar modelos a $0.20–0.40/MTok sin exponer lógica de negocio
+
+2. **Cost Preview & Control**  
+   Antes de ejecutar: “Esta crew costará ~$1.82 ±22% (80% CI)”  
+   Budget gates automáticos + override manual
+
+3. **Mobile Command**  
+   PWA + Tailscale → mismo UI en teléfono / tablet  
+   Push notifications críticas (completion, error, budget 80%)
+
+4. **One-click GitHub Import**  
+   Clona repo → AST → clasifica public/proprietary → genera blueprint inicial + sugiere primer crew
+
+5. **Template Marketplace** (v1 comunitario)  
+   Usuarios suben / descargan crews preconfigurados
+
+───────────────────────────────────────────────────────────────────────────────
+
+## 5. Pricing & Tiers (2026 launch)
+
+| Tier       | Precio      | Users | Cloud Sync | Hydra v2 | Marketplace Publish | On-prem | Soporte     |
+|------------|-------------|-------|------------|----------|---------------------|---------|-------------|
+| Free       | $0          | 1     | No         | Básico   | Solo read           | No      | Comunidad   |
+| Starter    | $29/mes     | 1     | Sí         | Completo | Read + limited      | No      | Email       |
+| Team       | $199/mes    | 4–10  | Sí         | Completo | Full publish        | No      | Priority    |
+| Enterprise | $599+/mes   | 11+   | Sí         | Custom   | Full + private      | Sí      | Dedicated   |
+
+Meta Year 1: ~80–100 clientes → ~$280–340k ARR (mix realista 45/40/15)
+
+───────────────────────────────────────────────────────────────────────────────
+
+## 6. Roadmap de Lanzamiento (8 semanas objetivo)
+
+**Semanas 1–2** → Foundation (Tauri shell, 4 vistas mock, WS + Zustand)  
+**Semanas 3–4** → Core (CrewAI events, cost tracking + preview, Hydra v1)  
+**Semana 5**   → Mobile & Security (PWA, Tailscale, Hydra v2)  
+**Semanas 6–7** → Polish (Blueprint AST, GitHub import, Marketplace v0)  
+**Semana 8**   → Beta cerrada (15 usuarios) + packaging multi-plataforma
+
+───────────────────────────────────────────────────────────────────────────────
+
+**Siguiente acción inmediata para coder**  
+1. Clonar https://github.com/mindwarehouse/mw-vision-core (asumiendo que ya existe o se crea)  
+2. `npm create tauri-app@latest` → stack React + TS  
+3. Instalar dependencias clave (ver Technical Spec)  
+4. Levantar FastAPI sidecar en puerto 8765 con WebSocket endpoint
+
+───────────────────────────────────────────────────────────────────────────────
+
+**Fin del Executive Summary v2.1**
+
+## 1. Arquitectura de alto nivel
+Tauri Desktop (Rust + WebView2)
+├─ React App (Vite + TS)
+│    ├─ Zustand stores (flow, team, chat, blueprint, cost)
+│    ├─ React Flow → Flow View
+│    ├─ shadcn/ui + lucide-react + tailwind
+│    └─ WebSocket client → ws://localhost:8765
+│
+└─ Python Sidecar (FastAPI + uvicorn)
+├─ /ws → WebSocket endpoint (broadcast events)
+├─ CrewRunner (abstracción sobre CrewAI / LangGraph-ready)
+├─ HydraService v2
+├─ CostEstimator (tokens → $$ usando precios OpenRouter 2026)
+├─ SQLite (tasks, sessions, cost history)
+└─ Future: Rust migration path (Tokio + candle / llm-rs)
+
+───────────────────────────────────────────────────────────────────────────────
+
+## 2. Dependencias clave (exact versions feb 2026)
+
+**Frontend (package.json)**
+
+```json
+{
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@xyflow/react": "^12.3.5",
+    "zustand": "^4.5.2",
+    "recharts": "^3.0.0",
+    "lucide-react": "^0.460.0",
+    "@tauri-apps/api": "^2.1.1",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.0",
+    "date-fns": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "vite": "^6.0.1",
+    "@tauri-apps/cli": "^2.1.0",
+    "typescript": "^5.6.3",
+    "tailwindcss": "^3.4.15"
+  }
+}
+Backend (requirements.txt)
+textfastapi==0.115.5
+uvicorn[standard]==0.32.1
+websockets==14.1
+sqlmodel==0.0.22
+pydantic==2.10.3
+crewai[tools]==0.86.0   # o versión más nueva compatible
+langfuse==2.56.1        # opcional observability
+python-dotenv==1.0.1
+───────────────────────────────────────────────────────────────────────────────
+3. Estructura de carpetas recomendada
+textmw-vision/
+├─ src-tauri/               # Rust backend Tauri
+├─ src/                     # React frontend
+│   ├─ components/
+│   │   ├─ flow/            FlowCanvas.tsx, CustomNode.tsx
+│   │   ├─ team/            AgentCard.tsx, CostChart.tsx
+│   │   ├─ chat/            ChatInput.tsx
+│   │   └─ blueprint/       ArchDiagram.tsx
+│   ├─ store/               flowStore.ts, costStore.ts ...
+│   ├─ services/            websocket.ts, githubImport.ts
+│   └─ types/               agent.ts, event.ts
+├─ backend/
+│   ├─ main.py
+│   ├─ services/
+│   │   ├─ crew_runner.py
+│   │   ├─ hydra_v2.py
+│   │   └─ cost_estimator.py
+│   └─ models/
+└─ public/                  manifest.json, icons
+───────────────────────────────────────────────────────────────────────────────
+4. Features críticas – implementación mínima viable (MVP)
+4.1 Cost Preview (killer feature)
+Frontend → antes de ws.send('launch_crew')
+
+const estimate = await fetchCostPreview(crewConfig, context);
+if (estimate > user.budget_remaining * 0.8) {
+  // modal confirm
+}
+
+CURRENT_PRICES = {
+    "anthropic/claude-3.5-sonnet": 3.00,   # $/1M input
+    "deepseek/deepseek-chat":    0.27,
+    # ... más modelos feb 2026
+}
+
+def estimate_cost(messages, model):
+    tokens = count_tokens(messages)           # usar tiktoken o similar
+    return (tokens / 1_000_000) * CURRENT_PRICES.get(model, 5.0)
+	
+	
+	class HydraV2:
+    def obfuscate(self, code: str, trust_level: int = 3) -> str:
+        if trust_level >= 4: return code  # trusted model
+
+        # Paso 1: renombrar variables sensibles
+        # Paso 2: insertar steganografía (comentarios con token padding)
+        # Paso 3: fragmentar en chunks < 8k tokens
+        return fragmented_obfuscated
+
+    def reassemble(self, results: list[str]) -> str:
+        # lógica inversa + validación
+        pass
+		
+
+
+.2 Hydra v2 (mínimo viable)
+Pythonclass HydraV2:
+    def obfuscate(self, code: str, trust_level: int = 3) -> str:
+        if trust_level >= 4: return code  # trusted model
+
+        # Paso 1: renombrar variables sensibles
+        # Paso 2: insertar steganografía (comentarios con token padding)
+        # Paso 3: fragmentar en chunks < 8k tokens
+        return fragmented_obfuscated
+
+    def reassemble(self, results: list[str]) -> str:
+        # lógica inversa + validación
+        pass
+		
+5. WebSocket Event Protocol (obligatorio)
+Ejemplos de mensajes JSON bidireccionales:
+Client → Server
+JSON{ "action": "launch_crew", "crew": "bug_hunter", "context": { "file": "auth.py" } }
+{ "action": "interrupt", "task_id": "t_123", "reason": "budget" }
+Server → Clients (broadcast)
+JSON{ "type": "agent.started",   "task_id": "...", "agent": "Debugger", "model": "claude-3.5-sonnet" }
+{ "type": "cost.update",     "task_id": "...", "current": 0.87, "estimated_total": 1.92 }
+{ "type": "crew.completed",  "task_id": "...", "result": "...", "total_cost": 1.45 }
+────────────────────────────────────────────────────────────────────
+
+6. Riesgos conocidos y mitigaciones rápidas
+
+Riesgo,Prob,Mitigación en v1
+CrewAI rompe API,Alta,Abstraer en CrewRunner; fallback LangGraph
+Bundle Python muy grande,Med,Nuitka / PyOxidizer en fase 2; plan Rust v3
+WebSocket race conditions,Med,Zustand middleware + debounce events
+Hydra v2 no engaña modelos 2027,Baja,Rotación esquemas + steganografía + local final
