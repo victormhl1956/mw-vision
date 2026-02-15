@@ -1,14 +1,15 @@
 """
 MW-Vision Backend - FastAPI with WebSocket Support
-
-Minimal backend for MW-Vision Visual Command Center.
-Provides WebSocket connections for real-time agent updates.
+Enhanced with Security Features
 
 Features:
 - WebSocket endpoint for real-time communication
 - Agent status management
 - Cost tracking simulation
 - Crew control (launch, pause, stop)
+- Rate limiting (100 requests/minute)
+- Security headers
+- Restricted CORS
 
 Run with: uvicorn main:app --host 0.0.0.0 --port 8000
 """
@@ -16,14 +17,94 @@ Run with: uvicorn main:app --host 0.0.0.0 --port 8000
 import asyncio
 import json
 import random
+import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from contextlib import asynccontextmanager
+from collections import defaultdict
+from threading import Lock
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from enum import Enum
+
+# ============================================================================
+# Security: Rate Limiting
+# ============================================================================
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Rate limiting middleware - 100 requests per minute per IP"""
+    
+    def __init__(self, app, requests_per_minute: int = 100):
+        super().__init__(app)
+        self.requests_per_minute = requests_per_minute
+        self.requests: Dict[str, List[float]] = defaultdict(list)
+        self.lock = Lock()
+    
+    def cleanup_old_requests(self, ip: str, current_time: float):
+        """Remove requests older than 1 minute"""
+        cutoff = current_time - 60
+        self.requests[ip] = [t for t in self.requests[ip] if t > cutoff]
+    
+    def is_rate_limited(self, ip: str) -> Tuple[bool, int]:
+        """Check if IP is rate limited"""
+        current_time = time.time()
+        with self.lock:
+            self.cleanup_old_requests(ip, current_time)
+            request_count = len(self.requests[ip])
+            
+            if request_count >= self.requests_per_minute:
+                # Find when the oldest request will expire
+                oldest = min(self.requests[ip]) if self.requests[ip] else current_time
+                retry_after = int(oldest + 60 - current_time) + 1
+                return True, retry_after
+            
+            self.requests[ip].append(current_time)
+            return False, 0
+    
+    async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting for WebSocket and health endpoints
+        if request.url.path in ["/ws", "/health"] or request.url.path.startswith("/ws"):
+            return await call_next(request)
+        
+        client_ip = request.client.host if request.client else "unknown"
+        limited, retry_after = self.is_rate_limited(client_ip)
+        
+        if limited:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "Rate limit exceeded",
+                    "retry_after": retry_after,
+                    "message": f"Too many requests. Retry in {retry_after} seconds."
+                },
+                headers={"Retry-After": str(retry_after)}
+            )
+        
+        response = await call_next(request)
+        return response
+
+# ============================================================================
+# Security Headers Middleware
+# ============================================================================
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses"""
+    
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        
+        return response
 
 # ============================================================================
 # Models
@@ -49,7 +130,7 @@ class CrewState(BaseModel):
     budget_limit: float = 10.0
 
 class WebSocketMessage(BaseModel):
-    type: str  # agent_update, cost_update, task_complete, crew_status, error
+    type: str
     agent_id: Optional[str] = None
     data: Optional[Dict] = None
 
@@ -75,7 +156,7 @@ MODEL_COSTS = {
     "deepseek-chat": 0.002,
     "gpt-4o": 0.03,
     "gpt-4": 0.06,
-    "ollama": 0.0,  # Free (local)
+    "ollama": 0.0,
 }
 
 # ============================================================================
@@ -83,20 +164,31 @@ MODEL_COSTS = {
 # ============================================================================
 
 class ConnectionManager:
-    """Manages WebSocket connections for real-time updates."""
+    """Manages WebSocket connections with security."""
     
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.max_connections_per_ip: Dict[str, int] = defaultdict(int)
     
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, client_ip: str):
         await websocket.accept()
+        
+        # Limit connections per IP
+        if self.max_connections_per_ip[client_ip] >= 5:
+            print(f"[WS] ⚠️ Too many connections from {client_ip}")
+            await websocket.close(code=1008)
+            return False
+        
+        self.max_connections_per_ip[client_ip] += 1
         self.active_connections.append(websocket)
-        print(f"[WS] Client connected. Total: {len(self.active_connections)}")
+        print(f"[WS] Client connected from {client_ip}. Total: {len(self.active_connections)}")
+        return True
     
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket, client_ip: str):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            print(f"[WS] Client disconnected. Total: {len(self.active_connections)}")
+        self.max_connections_per_ip[client_ip] = max(0, self.max_connections_per_ip[client_ip] - 1)
+        print(f"[WS] Client disconnected from {client_ip}. Total: {len(self.active_connections)}")
     
     async def broadcast(self, message: dict):
         """Send message to all connected clients."""
@@ -109,6 +201,17 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # ============================================================================
+# Security Metrics
+# ============================================================================
+
+security_metrics = {
+    "requests_blocked": 0,
+    "threats_detected": 0,
+    "invalid_messages": 0,
+    "start_time": datetime.now().isoformat()
+}
+
+# ============================================================================
 # Simulation Task
 # ============================================================================
 
@@ -118,21 +221,17 @@ async def simulate_agent_updates():
         if crew_state.is_running:
             for agent_id, agent in agents.items():
                 if agent.status == AgentStatus.RUNNING:
-                    # Simulate token usage (100-600 tokens)
                     tokens = random.randint(100, 600)
                     cost_per_token = MODEL_COSTS.get(agent.model, 0.01)
                     cost_increment = (tokens / 1000) * cost_per_token
                     
-                    # Update agent cost
                     agent.cost = round(agent.cost + cost_increment, 4)
                     agent.last_update = datetime.now().isoformat()
                     
-                    # Update crew total
                     crew_state.total_cost = round(
                         sum(a.cost for a in agents.values()), 4
                     )
                     
-                    # Check budget
                     if crew_state.total_cost > crew_state.budget_limit:
                         crew_state.is_running = False
                         await manager.broadcast({
@@ -145,7 +244,6 @@ async def simulate_agent_updates():
                         print(f"[Crew] 🛑 Budget exceeded! Total: ${crew_state.total_cost:.4f}")
                         break
                     
-                    # Broadcast update
                     await manager.broadcast({
                         "type": "cost_update",
                         "agent_id": agent_id,
@@ -155,7 +253,7 @@ async def simulate_agent_updates():
                         }
                     })
         
-        await asyncio.sleep(2)  # Update every 2 seconds
+        await asyncio.sleep(2)
 
 # ============================================================================
 # FastAPI App
@@ -170,14 +268,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="MW-Vision Backend",
-    description="WebSocket backend for MW-Vision Visual Command Center",
+    description="Secure WebSocket backend for MW-Vision Visual Command Center",
     lifespan=lifespan
 )
 
-# CORS
+# Add security middleware
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Restricted CORS (only localhost for development)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5189", "http://127.0.0.1:5189"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -192,22 +294,32 @@ async def root():
     return {
         "name": "MW-Vision Backend",
         "status": "running",
+        "version": "2.0.0",
+        "security": {
+            "rate_limiting": "100 requests/minute",
+            "cors": "restricted",
+            "security_headers": "enabled"
+        },
         "endpoints": {
             "websocket": "ws://localhost:8000/ws",
             "health": "/health",
             "agents": "/api/agents",
-            "crew": "/api/crew"
+            "crew": "/api/crew",
+            "security": "/api/security"
         }
     }
 
 @app.get("/health")
 async def health_check():
+    """Health check endpoint."""
+    uptime = (datetime.now() - datetime.fromisoformat(security_metrics["start_time"])).total_seconds()
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "connected_clients": len(manager.active_connections),
         "crew_running": crew_state.is_running,
-        "total_cost": crew_state.total_cost
+        "total_cost": crew_state.total_cost,
+        "uptime_seconds": round(uptime, 2)
     }
 
 @app.get("/api/agents")
@@ -221,14 +333,28 @@ async def get_agents():
 async def get_crew_state():
     return crew_state.model_dump()
 
+@app.get("/api/security")
+async def get_security_metrics():
+    """Security metrics endpoint."""
+    return {
+        "security_metrics": security_metrics,
+        "active_connections": len(manager.active_connections),
+        "per_ip_connections": dict(manager.max_connections_per_ip)
+    }
+
 # ============================================================================
 # WebSocket Endpoint
 # ============================================================================
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time agent updates."""
-    await manager.connect(websocket)
+    """WebSocket endpoint with security."""
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    
+    # Connect with rate limiting per IP
+    connected = await manager.connect(websocket, client_ip)
+    if not connected:
+        return
     
     try:
         # Send initial state
@@ -240,31 +366,72 @@ async def websocket_endpoint(websocket: WebSocket):
             }
         })
         
-        # Handle incoming messages
+        # Handle incoming messages with validation
+        message_count = 0
         while True:
             try:
                 data = await websocket.receive_text()
-                message = json.loads(data)
+                message_count += 1
+                
+                # Limit messages per connection (1000 per minute)
+                if message_count > 1000:
+                    await websocket.send_json({
+                        "type": "error",
+                        "data": {"message": "Message rate limit exceeded"}
+                    })
+                    break
+                
+                # Validate JSON
+                try:
+                    message = json.loads(data)
+                except json.JSONDecodeError:
+                    security_metrics["invalid_messages"] += 1
+                    await websocket.send_json({
+                        "type": "error",
+                        "data": {"message": "Invalid JSON format"}
+                    })
+                    continue
+                
                 await handle_message(message)
+                
             except json.JSONDecodeError:
+                security_metrics["invalid_messages"] += 1
                 await websocket.send_json({
                     "type": "error",
                     "data": {"message": "Invalid JSON"}
                 })
                 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        pass
+    finally:
+        manager.disconnect(websocket, client_ip)
 
 async def handle_message(message: dict):
-    """Process incoming WebSocket messages."""
+    """Process incoming WebSocket messages with validation."""
     msg_type = message.get("type")
     agent_id = message.get("agent_id")
     data = message.get("data", {})
     
+    # Validate message type
+    valid_types = {"crew_command", "agent_command", "ping"}
+    if msg_type not in valid_types:
+        security_metrics["threats_detected"] += 1
+        print(f"[WS] ⚠️ Invalid message type: {msg_type}")
+        return
+    
     print(f"[WS] Received: {msg_type} - {message}")
+    
+    if msg_type == "ping":
+        await manager.broadcast({"type": "pong", "data": {"timestamp": datetime.now().isoformat()}})
+        return
     
     if msg_type == "crew_command":
         command = data.get("command")
+        valid_commands = {"launch", "pause", "stop"}
+        
+        if command not in valid_commands:
+            security_metrics["threats_detected"] += 1
+            return
         
         if command == "launch":
             crew_state.is_running = True
@@ -303,6 +470,12 @@ async def handle_message(message: dict):
     
     elif msg_type == "agent_command" and agent_id:
         command = data.get("command")
+        valid_commands = {"start", "pause", "stop"}
+        
+        if command not in valid_commands or agent_id not in agents:
+            security_metrics["threats_detected"] += 1
+            return
+        
         if agent_id in agents:
             agent = agents[agent_id]
             
