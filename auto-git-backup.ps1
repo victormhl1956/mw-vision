@@ -1,111 +1,63 @@
-#!/usr/bin/env pwsh
-# ============================================================================
-# MW-Vision Auto-Backup Script
-# 
-# This script automatically backs up your changes to GitHub.
-# Run it manually or schedule with Windows Task Scheduler.
-# 
-# Schedule with: schtasks /create /tn "MW-Vision Backup" /tr "powershell.exe -File C:\path\to\auto-git-backup.ps1" /sc HOURLY
-# ============================================================================
+# Automatic version control system for MW-Vision project
+# Runs every 30 minutes and commits changes to GitHub
 
-$ErrorActionPreference = "Stop"
-
-# Configuration
 $repoPath = "L:\nicedev-Project\MW-Vision"
-$branch = "main"
-$commitMsg = "chore: auto-backup $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+$interval = 1800 # 30 minutes in seconds
+$logFile = "$repoPath\auto-backup.log"
 
-# Colors for output
-$Green = "#00FF00"
-$Cyan = "#00FFFF"
-$Yellow = "#FFFF00"
-$Red = "#FF0000"
-
-function Write-Status {
-    param([string]$Message, [string]$Color = $Cyan)
-    Write-Host "[$((Get-Date).ToString('HH:mm:ss'))]" -ForegroundColor Gray -NoNewline
-    Write-Host " $Message" -ForegroundColor $Color
+function Write-Log {
+    param($Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] $Message"
+    Write-Host $logEntry
+    Add-Content -Path $logFile -Value $logEntry
 }
 
-function Test-GitRepository {
+Write-Log "=== MW-Vision Auto-Backup System Started ==="
+Write-Log "Repository: $repoPath"
+Write-Log "Interval: $interval seconds (30 minutes)"
+Write-Log "Press Ctrl+C to stop"
+
+while ($true) {
     try {
-        $result = git -C $repoPath rev-parse --git-dir 2>$null
-        return $null -ne $result
-    } catch {
-        return $false
+        Set-Location $repoPath
+        
+        # Check for changes
+        $status = git status --porcelain
+        
+        if ($status) {
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            $changedFiles = ($status -split "`n").Count
+            
+            Write-Log "Changes detected: $changedFiles file(s)"
+            
+            # Add all changes
+            git add . 2>&1 | Out-Null
+            
+            # Commit with timestamp
+            $commitMessage = "chore: auto-save checkpoint - $timestamp"
+            git commit -m $commitMessage 2>&1 | Out-Null
+            
+            # Push to GitHub
+            $pushResult = git push origin main 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log "✅ AUTO-BACKUP SUCCESS - Changes committed and pushed to GitHub"
+                Write-Log "   Files changed: $changedFiles"
+                Write-Log "   Commit: $commitMessage"
+            } else {
+                Write-Log "⚠️ AUTO-BACKUP WARNING - Commit successful, but push failed"
+                Write-Log "   Error: $pushResult"
+            }
+        } else {
+            Write-Log "No changes detected - skipping backup"
+        }
     }
-}
-
-function Test-GitHubRemote {
-    try {
-        $remotes = git -C $repoPath remote -v
-        return $remotes -match "github"
-    } catch {
-        return $false
+    catch {
+        Write-Log "❌ ERROR: $($_.Exception.Message)"
     }
-}
-
-function Get-UncommittedChanges {
-    $status = git -C $repoPath status --porcelain
-    return $status.Count
-}
-
-function Push-ToGitHub {
-    Write-Status "Pushing to GitHub..." $Yellow
     
-    try {
-        git -C $repoPath push origin $branch
-        Write-Status "✅ Successfully pushed to GitHub!" $Green
-        return $true
-    } catch {
-        Write-Status "❌ Failed to push: $_" $Red
-        return $false
-    }
+    # Wait 30 minutes
+    Write-Log "Next backup check in 30 minutes..."
+    Start-Sleep -Seconds $interval
 }
-
-# ============================================================================
-# MAIN EXECUTION
-# ============================================================================
-
-Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════════╗" -ForegroundColor $Cyan
-Write-Host "║         MW-VISION AUTO-BACKUP SCRIPT                ║" -ForegroundColor $Cyan
-Write-Host "╚══════════════════════════════════════════════════════╝" -ForegroundColor $Cyan
-Write-Host ""
-
-# Check if Git repository exists
-if (-not (Test-GitRepository)) {
-    Write-Status "❌ Not a Git repository: $repoPath" $Red
-    exit 1
-}
-Write-Status "✅ Git repository found"
-
-# Check GitHub remote
-if (-not (Test-GitHubRemote)) {
-    Write-Status "⚠️  No GitHub remote configured" $Yellow
-} else {
-    Write-Status "✅ GitHub remote configured"
-}
-
-# Check for uncommitted changes
-$changes = Get-UncommittedChanges
-if ($changes -eq 0) {
-    Write-Status "No changes to commit" $Green
-} else {
-    Write-Status "Found $changes uncommitted change(s)" $Yellow
-    
-    # Stage all changes
-    Write-Status "Staging changes..." $Yellow
-    git -C $repoPath add -A
-    
-    # Create commit
-    Write-Status "Creating commit..." $Yellow
-    git -C $repoPath commit -m $commitMsg
-    
-    # Push to GitHub
-    Push-ToGitHub
-}
-
-Write-Host ""
-Write-Status "Backup complete!" $Green
-Write-Host ""
