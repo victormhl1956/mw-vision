@@ -29,8 +29,11 @@ function App() {
       setWsStatus(state.connectionStatus)
     })
     
-    // Try to connect to backend
-    wsService.connect('ws://localhost:8000/ws')
+    // Auto-discover backend and connect
+    const hostname = window.location.hostname
+    const wsUrl = `ws://${hostname}:8000/ws`
+    console.log(`[App] Connecting to WebSocket: ${wsUrl}`)
+    wsService.connect(wsUrl)
     
     return () => {
       wsService.disconnect()

@@ -1,24 +1,79 @@
 /**
  * MW-Vision WebSocket Service
  * 
- * Implements real WebSocket connection with automatic fallback to simulation
- * when backend is unavailable. This is the critical bridge between frontend and backend.
- * 
- * Features:
- * - Real WebSocket connection to backend
- * - Automatic reconnection with exponential backoff
- * - Fallback to simulation if backend unavailable
- * - Message dispatching based on event type
+ * Implements real WebSocket connection with automatic backend discovery.
+ * - Tries to connect to backend on multiple ports
+ * - Falls back to simulation only if no backend is found
+ * - No hardcoded URLs - auto-detects backend location
  */
 
 import { useCrewStore, type ConnectionStatus } from '../stores/crewStore'
+
+// ============================================================================
+// Backend Discovery & Configuration
+// ============================================================================
+
+interface BackendInfo {
+  url: string
+  port: number
+  isSecure: boolean
+}
+
+// Known backend ports (configuration)
+const BACKEND_PORTS = [8000, 8080, 3000]
+const PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+
+/**
+ * Auto-discover backend URL by checking known ports
+ */
+function discoverBackendUrl(): string | null {
+  // First try: Same origin + known ports
+  const hostname = window.location.hostname
+  
+  for (const port of BACKEND_PORTS) {
+    const testUrl = `${PROTOCOL}//${hostname}:${port}/ws`
+    try {
+      const xhr = new XMLHttpRequest()
+      xhr.open('GET', `${PROTOCOL}//${hostname}:${port}/health`, false)
+      xhr.timeout = 1000
+      xhr.send()
+      if (xhr.status === 200) {
+        console.log(`[WebSocket] ✅ Backend discovered at port ${port}`)
+        return testUrl
+      }
+    } catch {
+      // Port not available, continue checking
+    }
+  }
+  
+  // Second try: Common localhost patterns
+  const localhostPorts = [8000, 8080, 3000]
+  for (const port of localhostPorts) {
+    const testUrl = `ws://localhost:${port}/ws`
+    try {
+      const xhr = new XMLHttpRequest()
+      xhr.open('GET', `http://localhost:${port}/health`, false)
+      xhr.timeout = 1000
+      xhr.send()
+      if (xhr.status === 200) {
+        console.log(`[WebSocket] ✅ Backend discovered at localhost:${port}`)
+        return testUrl
+      }
+    } catch {
+      continue
+    }
+  }
+  
+  console.log('[WebSocket] ⚠️ No backend found, will use simulation mode')
+  return null
+}
 
 // ============================================================================
 // Types
 // ============================================================================
 
 interface WebSocketMessage {
-  type: 'agent_update' | 'cost_update' | 'task_complete' | 'error' | 'crew_status'
+  type: 'agent_update' | 'cost_update' | 'task_complete' | 'error' | 'crew_status' | 'init'
   agentId?: string
   data?: any
   timestamp?: number
