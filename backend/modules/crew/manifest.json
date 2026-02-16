@@ -1,0 +1,16 @@
+{
+  "name": "crew-module",
+  "version": "1.0.0",
+  "description": "Crew state management and simulation",
+  "dependencies": ["pydantic", "agents-module", "websocket-module"],
+  "exports": [
+    "CrewState",
+    "crew_state",
+    "simulate_agent_updates"
+  ],
+  "provides": [
+    "crew_state",
+    "cost_simulation",
+    "budget_tracking"
+  ]
+}

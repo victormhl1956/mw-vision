@@ -1,0 +1,17 @@
+{
+  "name": "security-module",
+  "version": "1.0.0",
+  "description": "Security middleware and metrics for MW-Vision",
+  "dependencies": ["fastapi", "starlette"],
+  "exports": [
+    "RateLimitMiddleware",
+    "SecurityHeadersMiddleware",
+    "SecurityMetrics",
+    "security_metrics"
+  ],
+  "provides": [
+    "rate_limiting",
+    "security_headers",
+    "metrics_tracking"
+  ]
+}

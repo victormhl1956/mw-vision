@@ -1,0 +1,16 @@
+{
+  "name": "websocket-module",
+  "version": "1.0.0",
+  "description": "WebSocket connection management and message handling",
+  "dependencies": ["fastapi", "security-module", "agents-module", "crew-module"],
+  "exports": [
+    "ConnectionManager",
+    "manager",
+    "handle_message"
+  ],
+  "provides": [
+    "websocket_connections",
+    "message_routing",
+    "real_time_updates"
+  ]
+}
