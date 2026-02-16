@@ -263,25 +263,25 @@ class BrowserInteractor {
 
   private getSelectors(target: string): string[] {
     const mapping: Record<string, string[]> = {
-      'header': ['header', '.header', '[class*="header"]'],
-      'team-tab': ['button:contains("Team")', '#team-tab', '[data-tab="team"]'],
-      'chat-tab': ['button:contains("Chat")', '#chat-tab', '[data-tab="chat"]'],
-      'flow-tab': ['button:contains("Flow")', '#flow-tab', '[data-tab="flow"]'],
-      'blueprint-tab': ['button:contains("Blueprint")', '#blueprint-tab', '[data-tab="blueprint"]'],
-      'agents-list': ['.agents-list', '[class*="agents"]', '.crew-members'],
-      'launch-crew': ['button:contains("Launch")', '#launch-crew', '[data-action="launch"]'],
-      'pause-crew': ['button:contains("Pause")', '#pause-crew', '[data-action="pause"]'],
-      'chat-input': ['input[type="text"]', '#chat-input', '[data-input="chat"]'],
-      'send-button': ['button[type="submit"]', '#send-button', '[data-action="send"]'],
-      'canvas': ['.canvas', '[class*="flow-canvas"]', '#flow-canvas'],
-      'status-running': ['[data-status="running"]', '.status-running'],
-      'status-paused': ['[data-status="paused"]', '.status-paused'],
-      'agent-nodes': ['[class*="agent-node"]', '.node-agent'],
-      'blueprint-content': ['[class*="blueprint"]', '.blueprint-view'],
-      'chat-response': ['[class*="response"]', '.chat-response'],
+      'header': ['header', '.header', '[data-testid="header"]'],
+      'team-tab': ['[data-testid="team-tab"]', '#team-tab', '[data-tab="team"]'],
+      'chat-tab': ['[data-testid="chat-tab"]', '#chat-tab', '[data-tab="chat"]'],
+      'flow-tab': ['[data-testid="flow-tab"]', '#flow-tab', '[data-tab="flow"]'],
+      'blueprint-tab': ['[data-testid="blueprint-tab"]', '#blueprint-tab', '[data-tab="blueprint"]'],
+      'agents-list': ['[data-testid="agents-list"]', '.agents-list', '[class*="agents"]'],
+      'launch-crew': ['[data-testid="launch-crew"]', '#launch-crew', '[data-action="launch"]'],
+      'pause-crew': ['[data-testid="pause-crew"]', '#pause-crew', '[data-action="pause"]'],
+      'chat-input': ['[data-testid="chat-input"]', 'input[type="text"]', '#chat-input'],
+      'send-button': ['[data-testid="send-button"]', 'button[type="submit"]', '#send-button'],
+      'canvas': ['[data-testid="canvas"]', '.canvas', '[class*="flow-canvas"]'],
+      'status-running': ['[data-testid="status-running"]', '[data-status="running"]'],
+      'status-paused': ['[data-testid="status-paused"]', '[data-status="paused"]'],
+      'agent-nodes': ['[data-testid="agent-nodes"]', '[class*="agent-node"]'],
+      'blueprint-content': ['[data-testid="blueprint-content"]', '[class*="blueprint"]'],
+      'chat-response': ['[data-testid="chat-response"]', '[class*="response"]'],
     }
-    
-    return mapping[target] || [`#${target}`, `[data-${target}]`, `.${target}`]
+
+    return mapping[target] || [`[data-testid="${target}"]`, `#${target}`, `[data-${target}]`]
   }
 
   private wait(ms: number): Promise<void> {
@@ -312,7 +312,11 @@ class BrowserInteractor {
   async testWebSocketConnection(): Promise<{ connected: boolean; latency: number }> {
     const start = Date.now()
     try {
-      const ws = new WebSocket('ws://localhost:8000/ws')
+      // Use window.location to derive WebSocket URL
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const hostname = window.location.hostname
+      const wsUrl = `${protocol}//${hostname}:8000/ws`
+      const ws = new WebSocket(wsUrl)
       
       return new Promise((resolve) => {
         ws.onopen = () => {
@@ -355,7 +359,9 @@ class BrowserInteractor {
     // API latency test
     const apiStart = Date.now()
     try {
-      await fetch('http://localhost:8000/health')
+      // Use window.location to derive API URL
+      const apiUrl = `${window.location.protocol}//${window.location.hostname}:8000/health`
+      await fetch(apiUrl)
       results.apiLatency = Date.now() - apiStart
     } catch (e) {
       results.apiLatency = -1
