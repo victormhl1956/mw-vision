@@ -168,9 +168,25 @@ class WebSocketService {
   }
 
   /**
+   * Normalize snake_case backend messages to camelCase frontend format
+   */
+  private normalizeMessage(msg: any): WebSocketMessage {
+    return {
+      ...msg,
+      agentId: msg.agent_id || msg.agentId,
+      data: msg.data ? {
+        ...msg.data,
+        isRunning: msg.data.is_running ?? msg.data.isRunning,
+        agentId: msg.data.agent_id || msg.data.agentId,
+      } : msg.data
+    }
+  }
+
+  /**
    * Handle incoming WebSocket messages
    */
-  private handleMessage(message: WebSocketMessage) {
+  private handleMessage(rawMessage: WebSocketMessage) {
+    const message = this.normalizeMessage(rawMessage)
     const store = useCrewStore.getState()
 
     switch (message.type) {
