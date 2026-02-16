@@ -24,20 +24,25 @@ const BACKEND_PORTS = [8000, 8080, 3000]
 const PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 
 /**
- * Auto-discover backend URL by checking known ports
+ * Auto-discover backend URL by checking known ports (async)
  */
-function discoverBackendUrl(): string | null {
+async function discoverBackendUrl(): Promise<string | null> {
   // First try: Same origin + known ports
   const hostname = window.location.hostname
-  
+
   for (const port of BACKEND_PORTS) {
     const testUrl = `${PROTOCOL}//${hostname}:${port}/ws`
     try {
-      const xhr = new XMLHttpRequest()
-      xhr.open('GET', `${PROTOCOL}//${hostname}:${port}/health`, false)
-      xhr.timeout = 1000
-      xhr.send()
-      if (xhr.status === 200) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 1000)
+
+      const response = await fetch(`${window.location.protocol}//${hostname}:${port}/health`, {
+        signal: controller.signal,
+        method: 'GET'
+      })
+      clearTimeout(timeoutId)
+
+      if (response.ok) {
         console.log(`[WebSocket] ✅ Backend discovered at port ${port}`)
         return testUrl
       }
@@ -45,17 +50,22 @@ function discoverBackendUrl(): string | null {
       // Port not available, continue checking
     }
   }
-  
+
   // Second try: Common localhost patterns
   const localhostPorts = [8000, 8080, 3000]
   for (const port of localhostPorts) {
     const testUrl = `ws://localhost:${port}/ws`
     try {
-      const xhr = new XMLHttpRequest()
-      xhr.open('GET', `http://localhost:${port}/health`, false)
-      xhr.timeout = 1000
-      xhr.send()
-      if (xhr.status === 200) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 1000)
+
+      const response = await fetch(`http://localhost:${port}/health`, {
+        signal: controller.signal,
+        method: 'GET'
+      })
+      clearTimeout(timeoutId)
+
+      if (response.ok) {
         console.log(`[WebSocket] ✅ Backend discovered at localhost:${port}`)
         return testUrl
       }
@@ -63,7 +73,7 @@ function discoverBackendUrl(): string | null {
       continue
     }
   }
-  
+
   console.log('[WebSocket] ⚠️ No backend found, will use simulation mode')
   return null
 }
