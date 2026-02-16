@@ -14,8 +14,16 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCrewStore } from '../stores/crewStore'
 
+// Agent Node Data Type
+interface AgentNodeData {
+  label: string
+  model: string
+  status: 'idle' | 'running' | 'paused' | 'error'
+  cost: number
+}
+
 // Custom Node Component
-function AgentNode({ data }: { data: any }) {
+function AgentNode({ data }: { data: AgentNodeData }) {
   const statusColor = 
     data.status === 'running' ? '#00ff88' :
     data.status === 'paused' ? '#ff9900' :

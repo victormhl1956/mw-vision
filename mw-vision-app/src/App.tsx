@@ -16,21 +16,28 @@ import { runTests, getTestSummary } from './services/browserInteractor'
 
 type ViewType = 'flow' | 'team' | 'chat' | 'blueprint'
 
+interface TestSummary {
+  total: number
+  passed: number
+  failed: number
+  duration: number
+}
+
 function App() {
   const [activeView, setActiveView] = useState<ViewType>('flow')
   const [showSecurityDashboard, setShowSecurityDashboard] = useState(false)
   const [testRunning, setTestRunning] = useState(false)
-  const [testResults, setTestResults] = useState<{ summary: any } | null>(null)
+  const [testResults, setTestResults] = useState<{ summary: TestSummary } | null>(null)
   const { connectionStatus, totalCost, budgetLimit, isCrewRunning } = useCrewStore()
 
   useEffect(() => {
-    console.log('[App] Initializing MW-Vision...')
+    import.meta.env.MODE === 'development' && console.log('[App] Initializing MW-Vision...')
     const unsubscribe = useCrewStore.subscribe((state) => {
-      console.log('[App] Connection status:', state.connectionStatus)
+      import.meta.env.MODE === 'development' && console.log('[App] Connection status:', state.connectionStatus)
     })
     const hostname = window.location.hostname
     const wsUrl = `ws://${hostname}:8000/ws`
-    console.log('[App] Connecting to:', wsUrl)
+    import.meta.env.MODE === 'development' && console.log('[App] Connecting to:', wsUrl)
     wsService.connect(wsUrl)
     return () => {
       wsService.disconnect()
@@ -61,12 +68,12 @@ function App() {
 
   const runBrowserTests = async () => {
     setTestRunning(true)
-    console.log('[App] Starting browser tests...')
+    import.meta.env.MODE === 'development' && console.log('[App] Starting browser tests...')
     try {
       await runTests()
       const summary = getTestSummary()
       setTestResults({ summary })
-      console.log('[App] Tests complete:', summary)
+      import.meta.env.MODE === 'development' && console.log('[App] Tests complete:', summary)
     } catch (error) {
       console.error('[App] Test error:', error)
     } finally {

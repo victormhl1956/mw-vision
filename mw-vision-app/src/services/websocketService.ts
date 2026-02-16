@@ -1,6 +1,6 @@
 /**
  * MW-Vision WebSocket Service
- * 
+ *
  * Implements real WebSocket connection with automatic backend discovery.
  * - Tries to connect to backend on multiple ports
  * - Falls back to simulation only if no backend is found
@@ -8,6 +8,18 @@
  */
 
 import { useCrewStore, type ConnectionStatus } from '../stores/crewStore'
+
+// ============================================================================
+// Development Logging Helper
+// ============================================================================
+
+const isDevelopment = import.meta.env.MODE === 'development'
+
+function devLog(...args: unknown[]): void {
+  if (isDevelopment) {
+    devLog(...args)
+  }
+}
 
 // ============================================================================
 // Backend Discovery & Configuration
@@ -43,7 +55,7 @@ async function discoverBackendUrl(): Promise<string | null> {
       clearTimeout(timeoutId)
 
       if (response.ok) {
-        console.log(`[WebSocket] ✅ Backend discovered at port ${port}`)
+        devLog(`[WebSocket] ✅ Backend discovered at port ${port}`)
         return testUrl
       }
     } catch {
@@ -66,7 +78,7 @@ async function discoverBackendUrl(): Promise<string | null> {
       clearTimeout(timeoutId)
 
       if (response.ok) {
-        console.log(`[WebSocket] ✅ Backend discovered at localhost:${port}`)
+        devLog(`[WebSocket] ✅ Backend discovered at localhost:${port}`)
         return testUrl
       }
     } catch {
@@ -74,7 +86,7 @@ async function discoverBackendUrl(): Promise<string | null> {
     }
   }
 
-  console.log('[WebSocket] ⚠️ No backend found, will use simulation mode')
+  devLog('[WebSocket] ⚠️ No backend found, will use simulation mode')
   return null
 }
 
@@ -82,10 +94,21 @@ async function discoverBackendUrl(): Promise<string | null> {
 // Types
 // ============================================================================
 
+interface WebSocketMessageData {
+  command?: string
+  status?: string
+  cost?: number
+  isRunning?: boolean
+  is_running?: boolean
+  message?: string
+  [key: string]: unknown
+}
+
 interface WebSocketMessage {
   type: 'agent_update' | 'agent_command' | 'cost_update' | 'task_complete' | 'error' | 'crew_status' | 'crew_command' | 'init'
   agentId?: string
-  data?: any
+  agent_id?: string
+  data?: WebSocketMessageData
   timestamp?: number
 }
 
@@ -132,7 +155,7 @@ class WebSocketService {
   connect(url: string = 'ws://localhost:8000/ws') {
     this.url = url
     this.connectionStatus = 'connecting'
-    console.log(`[WebSocket] Attempting connection to ${url}`)
+    devLog(`[WebSocket] Attempting connection to ${url}`)
     this.updateConnectionStatus()
 
     try {
@@ -140,7 +163,7 @@ class WebSocketService {
       this.ws = new WebSocket(url)
       
       this.ws.onopen = () => {
-        console.log('[WebSocket] ✅ Connected to backend')
+        devLog('[WebSocket] ✅ Connected to backend')
         this.connectionStatus = 'connected'
         this.reconnectAttempts = 0
         this.reconnectDelay = 1000
@@ -158,7 +181,7 @@ class WebSocketService {
       }
 
       this.ws.onclose = () => {
-        console.log('[WebSocket] Connection closed')
+        devLog('[WebSocket] Connection closed')
         this.connectionStatus = 'disconnected'
         this.updateConnectionStatus()
         this.scheduleReconnect()
@@ -180,7 +203,7 @@ class WebSocketService {
   /**
    * Normalize snake_case backend messages to camelCase frontend format
    */
-  private normalizeMessage(msg: any): WebSocketMessage {
+  private normalizeMessage(msg: WebSocketMessage): WebSocketMessage {
     return {
       ...msg,
       agentId: msg.agent_id || msg.agentId,
@@ -214,7 +237,7 @@ class WebSocketService {
 
       case 'task_complete':
         if (message.agentId) {
-          console.log(`[WebSocket] Agent ${message.agentId} completed task`)
+          devLog(`[WebSocket] Agent ${message.agentId} completed task`)
         }
         break
 
@@ -229,7 +252,7 @@ class WebSocketService {
         break
 
       default:
-        console.log('[WebSocket] Unknown message type:', message.type)
+        devLog('[WebSocket] Unknown message type:', message.type)
     }
   }
 
@@ -238,14 +261,14 @@ class WebSocketService {
    */
   private scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('[WebSocket] Max reconnect attempts reached, switching to simulation')
+      devLog('[WebSocket] Max reconnect attempts reached, switching to simulation')
       this.startSimulation()
       return
     }
 
     this.reconnectAttempts++
     const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000)
-    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+    devLog(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
 
     setTimeout(() => {
       this.connect(this.url)
@@ -259,7 +282,7 @@ class WebSocketService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message))
     } else {
-      console.log('[WebSocket] ⚠️  Cannot send, not connected:', message.type)
+      devLog('[WebSocket] ⚠️  Cannot send, not connected:', message.type)
     }
   }
 
@@ -304,7 +327,7 @@ class WebSocketService {
     this.isSimulating = true
     this.connectionStatus = 'simulating'
     this.updateConnectionStatus()
-    console.log('[WebSocket] 🔄 Starting simulation mode (no backend)')
+    devLog('[WebSocket] 🔄 Starting simulation mode (no backend)')
 
     // Realistic simulation based on model costs
     this.simulationInterval = setInterval(() => {
@@ -335,7 +358,7 @@ class WebSocketService {
       this.simulationInterval = null
     }
     this.isSimulating = false
-    console.log('[WebSocket] 🛑 Stopped simulation')
+    devLog('[WebSocket] 🛑 Stopped simulation')
   }
 
   /**
