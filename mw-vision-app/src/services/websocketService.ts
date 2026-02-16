@@ -73,7 +73,7 @@ function discoverBackendUrl(): string | null {
 // ============================================================================
 
 interface WebSocketMessage {
-  type: 'agent_update' | 'cost_update' | 'task_complete' | 'error' | 'crew_status' | 'init'
+  type: 'agent_update' | 'agent_command' | 'cost_update' | 'task_complete' | 'error' | 'crew_status' | 'crew_command' | 'init'
   agentId?: string
   data?: any
   timestamp?: number
@@ -342,14 +342,14 @@ export const isSimulating = () => wsService.isInSimulationMode()
 // Export message sending convenience functions
 export const sendCrewCommand = (command: 'launch' | 'pause' | 'stop') => {
   wsService.send({
-    type: 'crew_status',
+    type: 'crew_command',
     data: { command }
   })
 }
 
 export const sendAgentCommand = (agentId: string, command: 'start' | 'pause' | 'stop') => {
   wsService.send({
-    type: 'agent_update',
+    type: 'agent_command',
     agentId,
     data: { command }
   })
