@@ -342,9 +342,8 @@ class WebSocketService {
 
 export const wsService = new WebSocketService()
 
-// Auto-connect on import
-// The service will attempt real connection, fall back to simulation if needed
-wsService.connect()
+// Note: Connection must be initiated explicitly from App.tsx
+// This prevents double initialization and allows proper URL discovery
 
 // ============================================================================
 // Helper Functions (for use in components)
