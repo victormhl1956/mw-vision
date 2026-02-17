@@ -4,17 +4,16 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Activity, Network, Users, MessageSquare, Box, Wifi, WifiOff, Zap, Shield, Play, Terminal } from 'lucide-react'
+import { Activity, Network, Users, Box, Wifi, WifiOff, Zap, Shield, Play, Terminal } from 'lucide-react'
 import FlowView from './views/FlowView'
 import TeamView from './views/TeamView'
-import ChatView from './views/ChatView'
+import MissionLog from './views/MissionLog'
 import BlueprintView from './views/BlueprintView'
 import SecurityDashboard from './components/security/SecurityDashboard'
-import { wsService } from './services/websocketService'
 import { useCrewStore } from './stores/crewStore'
 import { runTests, getTestSummary } from './services/browserInteractor'
 
-type ViewType = 'flow' | 'team' | 'chat' | 'blueprint'
+type ViewType = 'flow' | 'team' | 'mission' | 'blueprint'
 
 interface TestSummary {
   total: number
@@ -28,21 +27,10 @@ function App() {
   const [showSecurityDashboard, setShowSecurityDashboard] = useState(false)
   const [testRunning, setTestRunning] = useState(false)
   const [testResults, setTestResults] = useState<{ summary: TestSummary } | null>(null)
-  const { connectionStatus, totalCost, budgetLimit, isCrewRunning } = useCrewStore()
+  const { connectionStatus, totalCost, budgetLimit, isCrewRunning, init } = useCrewStore()
 
   useEffect(() => {
-    import.meta.env.MODE === 'development' && console.log('[App] Initializing MW-Vision...')
-    const unsubscribe = useCrewStore.subscribe((state) => {
-      import.meta.env.MODE === 'development' && console.log('[App] Connection status:', state.connectionStatus)
-    })
-    const hostname = window.location.hostname
-    const wsUrl = `ws://${hostname}:8000/ws`
-    import.meta.env.MODE === 'development' && console.log('[App] Connecting to:', wsUrl)
-    wsService.connect(wsUrl)
-    return () => {
-      wsService.disconnect()
-      unsubscribe()
-    }
+    init()
   }, [])
 
   const getStatusDisplay = () => {
@@ -68,12 +56,10 @@ function App() {
 
   const runBrowserTests = async () => {
     setTestRunning(true)
-    import.meta.env.MODE === 'development' && console.log('[App] Starting browser tests...')
     try {
       await runTests()
       const summary = getTestSummary()
       setTestResults({ summary })
-      import.meta.env.MODE === 'development' && console.log('[App] Tests complete:', summary)
     } catch (error) {
       console.error('[App] Test error:', error)
     } finally {
@@ -87,7 +73,7 @@ function App() {
   const tabs = [
     { id: 'flow' as ViewType, name: 'Flow View', icon: Network },
     { id: 'team' as ViewType, name: 'Team View', icon: Users },
-    { id: 'chat' as ViewType, name: 'Chat View', icon: MessageSquare },
+    { id: 'mission' as ViewType, name: 'Mission Log', icon: Terminal },
     { id: 'blueprint' as ViewType, name: 'Blueprint View', icon: Box },
   ]
 
@@ -130,7 +116,7 @@ function App() {
               <div className="flex items-center gap-2 px-4 py-2 bg-osint-panel/50 rounded-lg border border-osint-cyan/20">
                 <span className="text-sm text-osint-text-dim">Cost:</span>
                 <span className={`text-sm font-mono font-semibold ${totalCost > budgetLimit ? 'text-red-500' : totalCost > budgetLimit * 0.8 ? 'text-orange-500' : 'text-osint-green'}`}>
-                  ${totalCost.toFixed(4)}
+                  ${totalCost.toFixed(2)}
                 </span>
                 <span className="text-xs text-osint-text-muted">/ ${budgetLimit}</span>
               </div>
@@ -149,7 +135,7 @@ function App() {
             <div className="flex items-center gap-4">
               <Play className="w-4 h-4 text-osint-purple" />
               <span className="text-sm text-osint-text">
-                Alpha Test Results: 
+                Alpha Test Results:
                 <span className="text-green-500 ml-2">✓ {testResults.summary.passed}/{testResults.summary.total} passed</span>
                 <span className="text-osint-text-dim ml-2">({(testResults.summary.duration / 1000).toFixed(2)}s)</span>
               </span>
@@ -179,7 +165,7 @@ function App() {
       <main className="max-w-[1920px] mx-auto p-6">
         {activeView === 'flow' && <FlowView />}
         {activeView === 'team' && <TeamView />}
-        {activeView === 'chat' && <ChatView />}
+        {activeView === 'mission' && <MissionLog />}
         {activeView === 'blueprint' && <BlueprintView />}
       </main>
     </div>

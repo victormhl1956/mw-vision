@@ -17,38 +17,36 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent; onClose: () => voi
         <button onClick={onClose} className="absolute top-4 right-4 text-osint-text-muted hover:text-osint-text">
           <X className="w-5 h-5" />
         </button>
-        
+
         <div className="mb-6">
           <h3 className="text-xl font-bold text-osint-cyan">{agent.name}</h3>
           <div className="text-sm text-osint-text-dim font-mono mt-1">{agent.model}</div>
         </div>
-        
+
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="glass-card p-3 rounded">
               <div className="text-xs text-osint-text-dim">Status</div>
-              <div className={`font-semibold capitalize ${
-                agent.status === 'running' ? 'text-osint-green' :
-                agent.status === 'paused' ? 'text-osint-orange' :
-                agent.status === 'error' ? 'text-osint-red' : 'text-osint-text-muted'
-              }`}>{agent.status}</div>
+              <div className={`font-semibold ${agent.status === 'running' ? 'text-osint-green' :
+                agent.status === 'paused' ? 'text-osint-orange' : 'text-osint-text-muted'
+                }`}>{agent.status}</div>
             </div>
             <div className="glass-card p-3 rounded">
               <div className="text-xs text-osint-text-dim">Total Cost</div>
-              <div className="font-semibold text-osint-cyan font-mono">${agent.cost.toFixed(4)}</div>
+              <div className="font-semibold text-osint-cyan font-mono">${agent.totalCost.toFixed(2)}</div>
             </div>
           </div>
-          
+
           <div className="glass-card p-3 rounded">
             <div className="text-xs text-osint-text-dim">Tasks Completed</div>
-            <div className="text-2xl font-bold text-osint-text">{agent.tasks}</div>
+            <div className="text-2xl font-bold text-osint-text">{agent.tasksCompleted}</div>
           </div>
-          
+
           <div className="glass-card p-3 rounded">
             <div className="text-xs text-osint-text-dim">Average Response Time</div>
-            <div className="text-2xl font-bold text-osint-orange">{agent.averageResponseTime.toFixed(1)}s</div>
+            <div className="text-2xl font-bold text-osint-orange">{agent.lastResponseTime.toFixed(1)}s</div>
           </div>
-          
+
           <div className="glass-card p-3 rounded">
             <div className="text-xs text-osint-text-dim">Last Activity</div>
             <div className="text-sm text-osint-text">{new Date(agent.lastUpdate).toLocaleString()}</div>
@@ -62,10 +60,10 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent; onClose: () => voi
 export default function TeamView() {
   const { agents, totalCost, isCrewRunning, connectionStatus, updateAgentStatus } = useCrewStore()
   const [selectedAgent, setSelectedAgent] = useState<typeof agents[number] | null>(null)
-  
+
   const activeAgents = agents.filter(a => a.status === 'running').length
-  const totalTasks = agents.reduce((sum, agent) => sum + agent.tasks, 0)
-  const avgResponse = agents.reduce((sum, agent) => sum + agent.averageResponseTime, 0) / agents.length || 0
+  const totalTasks = agents.reduce((sum, agent) => sum + agent.tasksCompleted, 0)
+  const avgResponse = agents.reduce((sum, agent) => sum + agent.lastResponseTime, 0) / agents.length || 0
 
   // Real connection status based on WebSocket state
   const getConnectionColor = () => {
@@ -170,15 +168,12 @@ export default function TeamView() {
                   <h3 className="text-lg font-semibold text-osint-text">{agent.name}</h3>
                   <div className="text-sm text-osint-text-dim font-mono mt-1">{agent.model}</div>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-semibold uppercase border ${
-                  agent.status === 'running' 
-                    ? 'bg-osint-green/20 border-osint-green text-osint-green' 
-                    : agent.status === 'paused'
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold uppercase border ${agent.status === 'running'
+                  ? 'bg-osint-green/20 border-osint-green text-osint-green'
+                  : agent.status === 'paused'
                     ? 'bg-osint-orange/20 border-osint-orange text-osint-orange'
-                    : agent.status === 'error'
-                    ? 'bg-osint-red/20 border-osint-red text-osint-red'
                     : 'bg-osint-panel border-osint-text-muted text-osint-text-muted'
-                }`}>
+                  }`}>
                   {agent.status}
                 </div>
               </div>
@@ -186,15 +181,15 @@ export default function TeamView() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-osint-text-dim text-sm">Tasks Completed</span>
-                  <span className="text-osint-text font-semibold">{agent.tasks}</span>
+                  <span className="text-osint-text font-semibold">{agent.tasksCompleted}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-osint-text-dim text-sm">Cost</span>
-                  <span className="text-osint-cyan font-mono font-semibold">${agent.cost.toFixed(4)}</span>
+                  <span className="text-osint-cyan font-mono font-semibold">${agent.totalCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-osint-text-dim text-sm">Response Time</span>
-                  <span className="text-osint-text font-semibold">{agent.averageResponseTime.toFixed(1)}s</span>
+                  <span className="text-osint-text font-semibold">{agent.lastResponseTime.toFixed(1)}s</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-osint-text-dim text-sm">Last Update</span>
@@ -205,7 +200,7 @@ export default function TeamView() {
               </div>
 
               <div className="flex gap-3 mt-4 pt-4 border-t border-osint-cyan/20">
-                <button 
+                <button
                   onClick={() => setSelectedAgent(agent)}
                   className="flex-1 px-3 py-2 text-sm bg-osint-cyan/20 border border-osint-cyan text-osint-cyan rounded hover:bg-osint-cyan/30 hover:shadow-[0_0_10px_rgba(0,212,255,0.3)] transition-all flex items-center justify-center gap-2"
                 >
@@ -213,7 +208,7 @@ export default function TeamView() {
                   View Details
                 </button>
                 {agent.status === 'running' && (
-                  <button 
+                  <button
                     onClick={() => updateAgentStatus(agent.id, 'paused')}
                     className="flex-1 px-3 py-2 text-sm bg-osint-orange/20 border border-osint-orange text-osint-orange rounded hover:bg-osint-orange/30 hover:shadow-[0_0_10px_rgba(255,153,0,0.3)] transition-all"
                   >
@@ -245,12 +240,11 @@ export default function TeamView() {
             <div className={`w-3 h-3 rounded-full ${getConnectionColor()}`} />
             <div>
               <div className="text-sm text-osint-text-dim">WebSocket</div>
-              <div className={`font-semibold ${
-                connectionStatus === 'connected' ? 'text-osint-green' :
+              <div className={`font-semibold ${connectionStatus === 'connected' ? 'text-osint-green' :
                 connectionStatus === 'error' ? 'text-osint-red' :
-                connectionStatus === 'simulating' ? 'text-osint-purple' :
-                'text-osint-text-muted'
-              }`}>
+                  connectionStatus === 'simulating' ? 'text-osint-purple' :
+                    'text-osint-text-muted'
+                }`}>
                 {getConnectionLabel()}
               </div>
             </div>
@@ -259,14 +253,13 @@ export default function TeamView() {
             <div className={`w-3 h-3 rounded-full ${getConnectionColor()}`} />
             <div>
               <div className="text-sm text-osint-text-dim">Backend API</div>
-              <div className={`font-semibold ${
-                connectionStatus === 'connected' ? 'text-osint-green' :
+              <div className={`font-semibold ${connectionStatus === 'connected' ? 'text-osint-green' :
                 connectionStatus === 'error' ? 'text-osint-red' :
-                connectionStatus === 'simulating' ? 'text-osint-purple' :
-                'text-osint-text-muted'
-              }`}>
-                {connectionStatus === 'connected' || connectionStatus === 'simulating' ? 'Healthy' : 
-                 connectionStatus === 'error' ? 'Error' : 'Offline'}
+                  connectionStatus === 'simulating' ? 'text-osint-purple' :
+                    'text-osint-text-muted'
+                }`}>
+                {connectionStatus === 'connected' || connectionStatus === 'simulating' ? 'Healthy' :
+                  connectionStatus === 'error' ? 'Error' : 'Offline'}
               </div>
             </div>
           </div>
@@ -275,9 +268,9 @@ export default function TeamView() {
 
       {/* Agent Detail Modal */}
       {selectedAgent && (
-        <AgentDetailModal 
-          agent={selectedAgent} 
-          onClose={() => setSelectedAgent(null)} 
+        <AgentDetailModal
+          agent={selectedAgent}
+          onClose={() => setSelectedAgent(null)}
         />
       )}
     </div>

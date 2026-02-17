@@ -1,404 +1,92 @@
-/**
- * MW-Vision WebSocket Service
- *
- * Implements real WebSocket connection with automatic backend discovery.
- * - Tries to connect to backend on multiple ports
- * - Falls back to simulation only if no backend is found
- * - No hardcoded URLs - auto-detects backend location
- */
-
-import { useCrewStore, type ConnectionStatus } from '../stores/crewStore'
-
-// ============================================================================
-// Development Logging Helper
-// ============================================================================
-
-const isDevelopment = import.meta.env.MODE === 'development'
-
-function devLog(...args: unknown[]): void {
-  if (isDevelopment) {
-    devLog(...args)
-  }
-}
-
-// ============================================================================
-// Backend Discovery & Configuration
-// ============================================================================
-
-interface BackendInfo {
-  url: string
-  port: number
-  isSecure: boolean
-}
-
-// Known backend ports (configuration)
-const BACKEND_PORTS = [8000, 8080, 3000]
-const PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-
-/**
- * Auto-discover backend URL by checking known ports (async)
- */
-async function discoverBackendUrl(): Promise<string | null> {
-  // First try: Same origin + known ports
-  const hostname = window.location.hostname
-
-  for (const port of BACKEND_PORTS) {
-    const testUrl = `${PROTOCOL}//${hostname}:${port}/ws`
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 1000)
-
-      const response = await fetch(`${window.location.protocol}//${hostname}:${port}/health`, {
-        signal: controller.signal,
-        method: 'GET'
-      })
-      clearTimeout(timeoutId)
-
-      if (response.ok) {
-        devLog(`[WebSocket] ✅ Backend discovered at port ${port}`)
-        return testUrl
-      }
-    } catch {
-      // Port not available, continue checking
-    }
-  }
-
-  // Second try: Common localhost patterns
-  const localhostPorts = [8000, 8080, 3000]
-  for (const port of localhostPorts) {
-    const testUrl = `ws://localhost:${port}/ws`
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 1000)
-
-      const response = await fetch(`http://localhost:${port}/health`, {
-        signal: controller.signal,
-        method: 'GET'
-      })
-      clearTimeout(timeoutId)
-
-      if (response.ok) {
-        devLog(`[WebSocket] ✅ Backend discovered at localhost:${port}`)
-        return testUrl
-      }
-    } catch {
-      continue
-    }
-  }
-
-  devLog('[WebSocket] ⚠️ No backend found, will use simulation mode')
-  return null
-}
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface WebSocketMessageData {
-  command?: string
-  status?: string
-  cost?: number
-  isRunning?: boolean
-  is_running?: boolean
-  message?: string
-  [key: string]: unknown
-}
+import { useCrewStore, type ConnectionStatus } from '../stores/crewStore';
 
 interface WebSocketMessage {
-  type: 'agent_update' | 'agent_command' | 'cost_update' | 'task_complete' | 'error' | 'crew_status' | 'crew_command' | 'init'
-  agentId?: string
-  agent_id?: string
-  data?: WebSocketMessageData
-  timestamp?: number
+  type: string;
+  agentId?: string;
+  agent_id?: string;
+  data?: any;
+  agent?: any;
+  decision?: any;
+  timestamp?: number;
 }
-
-interface MWEvent {
-  type: 'agent.started' | 'agent.completed' | 'agent.error' | 'agent.cost'
-       | 'crew.launched' | 'crew.paused' | 'crew.finished'
-       | 'budget.warning' | 'budget.exceeded'
-  timestamp: number
-  source: string
-  agentId?: string
-  data: Record<string, unknown>
-}
-
-// ============================================================================
-// Model Cost Configuration (Real pricing)
-// ============================================================================
-
-const MODEL_COSTS = {
-  'claude-3-5-sonnet': 0.015,  // $0.015 per 1K tokens
-  'deepseek-chat': 0.002,       // $0.002 per 1K tokens  
-  'gpt-4o': 0.03,              // $0.03 per 1K tokens
-  'gpt-4': 0.06,               // $0.06 per 1K tokens
-  'ollama': 0,                  // Free (local)
-  'default': 0.01,
-}
-
-// ============================================================================
-// WebSocket Service Class
-// ============================================================================
 
 class WebSocketService {
-  private ws: WebSocket | null = null
-  private url: string = ''
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 1000 // Start with 1 second
-  private simulationInterval: ReturnType<typeof setInterval> | null = null
-  private isSimulating = false
-  private connectionStatus: ConnectionStatus = 'disconnected'
+  private ws: WebSocket | null = null;
+  private currentUrl: string = '';
+  private connectionStatus: ConnectionStatus = 'disconnected';
+  private simulationInterval: any = null;
 
-  /**
-   * Connect to WebSocket server with automatic fallback to simulation
-   */
   connect(url: string = 'ws://localhost:8000/ws') {
-    this.url = url
-    this.connectionStatus = 'connecting'
-    devLog(`[WebSocket] Attempting connection to ${url}`)
-    this.updateConnectionStatus()
-
+    this.currentUrl = url;
+    this.connectionStatus = 'connecting';
+    this.updateStatus();
     try {
-      // Try real WebSocket connection
-      this.ws = new WebSocket(url)
-      
+      this.ws = new WebSocket(url);
       this.ws.onopen = () => {
-        devLog('[WebSocket] ✅ Connected to backend')
-        this.connectionStatus = 'connected'
-        this.reconnectAttempts = 0
-        this.reconnectDelay = 1000
-        this.updateConnectionStatus()
-        this.stopSimulation()
-      }
-
+        this.connectionStatus = 'connected';
+        this.updateStatus();
+        if (this.simulationInterval) clearInterval(this.simulationInterval);
+      };
       this.ws.onmessage = (event) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(event.data)
-          this.handleMessage(message)
-        } catch (error) {
-          console.error('[WebSocket] Failed to parse message:', error)
-        }
-      }
+        const msg: WebSocketMessage = JSON.parse(event.data);
+        const store = useCrewStore.getState();
+        const id = msg.agentId || msg.agent_id || (msg.agent && msg.agent.id);
 
+        switch (msg.type) {
+          case 'agent_status':
+          case 'agent_update':
+            if (id) store.updateAgentStatus(id, (msg.data?.status || (msg.agent && msg.agent.status) || 'idle') as any);
+            break;
+          case 'cost_update':
+            if (id && msg.data?.cost !== undefined) store.updateAgentCost(id, msg.data.cost);
+            break;
+        }
+      };
       this.ws.onclose = () => {
-        devLog('[WebSocket] Connection closed')
-        this.connectionStatus = 'disconnected'
-        this.updateConnectionStatus()
-        this.scheduleReconnect()
-      }
-
-      this.ws.onerror = (error) => {
-        console.error('[WebSocket] Error:', error)
-        this.connectionStatus = 'error'
-        this.updateConnectionStatus()
-      }
-    } catch (error) {
-      console.error('[WebSocket] Failed to create connection:', error)
-      this.connectionStatus = 'error'
-      this.updateConnectionStatus()
-      this.startSimulation()
+        this.connectionStatus = 'disconnected';
+        this.updateStatus();
+        this.scheduleReconnect();
+      };
+    } catch {
+      this.startSimulation();
+      this.scheduleReconnect();
     }
   }
 
-  /**
-   * Normalize snake_case backend messages to camelCase frontend format
-   */
-  private normalizeMessage(msg: WebSocketMessage): WebSocketMessage {
-    return {
-      ...msg,
-      agentId: msg.agent_id || msg.agentId,
-      data: msg.data ? {
-        ...msg.data,
-        isRunning: msg.data.is_running ?? msg.data.isRunning,
-        agentId: msg.data.agent_id || msg.data.agentId,
-      } : msg.data
-    }
-  }
-
-  /**
-   * Handle incoming WebSocket messages
-   */
-  private handleMessage(rawMessage: WebSocketMessage) {
-    const message = this.normalizeMessage(rawMessage)
-    const store = useCrewStore.getState()
-
-    switch (message.type) {
-      case 'agent_update':
-        if (message.agentId) {
-          store.updateAgentStatus(message.agentId, message.data?.status || 'idle')
-        }
-        break
-
-      case 'cost_update':
-        if (message.agentId && message.data?.cost !== undefined) {
-          store.updateAgentCost(message.agentId, message.data.cost)
-        }
-        break
-
-      case 'task_complete':
-        if (message.agentId) {
-          devLog(`[WebSocket] Agent ${message.agentId} completed task`)
-        }
-        break
-
-      case 'crew_status':
-        if (message.data?.isRunning !== undefined) {
-          store.setCrewRunning(message.data.isRunning)
-        }
-        break
-
-      case 'error':
-        console.error('[WebSocket] Server error:', message.data?.message)
-        break
-
-      default:
-        devLog('[WebSocket] Unknown message type:', message.type)
-    }
-  }
-
-  /**
-   * Schedule reconnection with exponential backoff
-   */
   private scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      devLog('[WebSocket] Max reconnect attempts reached, switching to simulation')
-      this.startSimulation()
-      return
-    }
-
-    this.reconnectAttempts++
-    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000)
-    devLog(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
-
-    setTimeout(() => {
-      this.connect(this.url)
-    }, delay)
-  }
-
-  /**
-   * Send message to server
-   */
-  send(message: WebSocketMessage) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message))
-    } else {
-      devLog('[WebSocket] ⚠️  Cannot send, not connected:', message.type)
+    if (this.connectionStatus === 'disconnected') {
+      setTimeout(() => this.connect(this.currentUrl), 1000);
     }
   }
 
-  /**
-   * Disconnect from WebSocket server
-   */
-  disconnect() {
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
-    this.stopSimulation()
-    this.connectionStatus = 'disconnected'
-    this.updateConnectionStatus()
+  private updateStatus() {
+    useCrewStore.getState().setConnectionStatus(this.connectionStatus);
   }
 
-  /**
-   * Get current connection status
-   */
-  getConnectionStatus(): string {
-    return this.connectionStatus
-  }
-
-  /**
-   * Update connection status in store
-   */
-  private updateConnectionStatus() {
-    const store = useCrewStore.getState()
-    store.setConnectionStatus(this.connectionStatus)
-  }
-
-  // =========================================================================
-  // Simulation Fallback (for when no backend is available)
-  // =========================================================================
-
-  /**
-   * Start simulation mode - simulates agent updates with realistic costs
-   */
-  startSimulation() {
-    if (this.isSimulating) return
-    
-    this.isSimulating = true
-    this.connectionStatus = 'simulating'
-    this.updateConnectionStatus()
-    devLog('[WebSocket] 🔄 Starting simulation mode (no backend)')
-
-    // Realistic simulation based on model costs
+  private startSimulation() {
+    this.connectionStatus = 'simulating';
+    this.updateStatus();
     this.simulationInterval = setInterval(() => {
-      const store = useCrewStore.getState()
-      
-      // Only simulate if crew is running
-      if (!store.isCrewRunning) return
-
-      store.agents.forEach((agent) => {
-        if (agent.status === 'running') {
-          // Simulate token-based cost (more realistic than random)
-          const tokensPerUpdate = Math.floor(Math.random() * 500) + 100 // 100-600 tokens
-          const costPerToken = MODEL_COSTS[agent.model as keyof typeof MODEL_COSTS] || MODEL_COSTS['default']
-          const costIncrement = (tokensPerUpdate / 1000) * costPerToken
-          
-          store.updateAgentCost(agent.id, agent.cost + costIncrement)
-        }
-      })
-    }, 2000) // Update every 2 seconds
+      const store = useCrewStore.getState();
+      if (!store.isCrewRunning) return;
+      store.agents.forEach(a => {
+        if (a.status === 'running') store.updateAgentCost(a.id, a.totalCost + 0.001);
+      });
+    }, 2000);
   }
 
-  /**
-   * Stop simulation mode
-   */
-  stopSimulation() {
-    if (this.simulationInterval) {
-      clearInterval(this.simulationInterval)
-      this.simulationInterval = null
-    }
-    this.isSimulating = false
-    devLog('[WebSocket] 🛑 Stopped simulation')
+  send(msg: any) {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
-  /**
-   * Check if currently simulating
-   */
-  isInSimulationMode(): boolean {
-    return this.isSimulating
+  disconnect() {
+    this.ws?.close();
+    if (this.simulationInterval) clearInterval(this.simulationInterval);
   }
 }
 
-// ============================================================================
-// Singleton Instance
-// ============================================================================
-
-export const wsService = new WebSocketService()
-
-// Note: Connection must be initiated explicitly from App.tsx
-// This prevents double initialization and allows proper URL discovery
-
-// ============================================================================
-// Helper Functions (for use in components)
-// ============================================================================
-
-export const connectToBackend = (url?: string) => wsService.connect(url)
-export const disconnectFromBackend = () => wsService.disconnect()
-export const getConnectionStatus = () => wsService.getConnectionStatus()
-export const isSimulating = () => wsService.isInSimulationMode()
-
-// Export message sending convenience functions
-export const sendCrewCommand = (command: 'launch' | 'pause' | 'stop') => {
-  wsService.send({
-    type: 'crew_command',
-    data: { command }
-  })
-}
-
-export const sendAgentCommand = (agentId: string, command: 'start' | 'pause' | 'stop') => {
-  wsService.send({
-    type: 'agent_command',
-    agentId,
-    data: { command }
-  })
-}
+export const wsService = new WebSocketService();
+export const connectToBackend = (url?: string) => wsService.connect(url);
+export const disconnectFromBackend = () => wsService.disconnect();
+export const sendCrewCommand = (command: string) => wsService.send({ type: 'crew_command', data: { command } });
+export const sendAgentCommand = (agentId: string, command: string) => wsService.send({ type: 'agent_command', agentId, data: { command } });

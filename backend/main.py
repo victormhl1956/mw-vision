@@ -122,6 +122,9 @@ class AgentModel(BaseModel):
     model: str
     status: AgentStatus = AgentStatus.IDLE
     cost: float = 0.0
+    tasks_completed: int = 0
+    response_time: float = 0.0 # ms
+    complexity_score: float = 0.0
     last_update: Optional[str] = None
 
 class CrewState(BaseModel):
@@ -139,9 +142,10 @@ class WebSocketMessage(BaseModel):
 # ============================================================================
 
 agents: Dict[str, AgentModel] = {
-    "1": AgentModel(id="1", name="Debugger", model="claude-3-5-sonnet"),
-    "2": AgentModel(id="2", name="Code Reviewer", model="deepseek-chat"),
-    "3": AgentModel(id="3", name="Test Generator", model="gpt-4o"),
+    "0": AgentModel(id="0", name="Strategic Coordinator", model="claude-3-5-sonnet", complexity_score=0.95),
+    "1": AgentModel(id="1", name="Debugger", model="claude-3-5-sonnet", complexity_score=0.85),
+    "2": AgentModel(id="2", name="Code Reviewer", model="deepseek-chat", complexity_score=0.75),
+    "3": AgentModel(id="3", name="Test Generator", model="gpt-4o", complexity_score=0.70),
 }
 
 crew_state = CrewState()
@@ -216,22 +220,60 @@ security_metrics = {
 # ============================================================================
 
 async def simulate_agent_updates():
-    """Background task to simulate agent activity."""
+    """Background task to simulate agent activity and strategic routing."""
+    mission_events = [
+        "Analyzing project structure...",
+        "Identifying bottleneck in MoE experts...",
+        "Routing task to Debugger...",
+        "Validating fix with Code Reviewer...",
+        "Generating unit tests...",
+        "Applying security audit patches...",
+        "Optimizing AST parsing tree...",
+        "Mission status: 85% complete."
+    ]
+    
     while True:
         if crew_state.is_running:
+            # 1. Simulate Strategic Coordinator decision
+            if random.random() > 0.7:
+                event = random.choice(mission_events)
+                await manager.broadcast({
+                    "type": "mission_log",
+                    "data": {
+                        "timestamp": datetime.now().strftime("%H:%M:%S"),
+                        "message": f"[SC] {event}",
+                        "level": "INFO"
+                    }
+                })
+
             for agent_id, agent in agents.items():
                 if agent.status == AgentStatus.RUNNING:
-                    tokens = random.randint(100, 600)
+                    # Simulate work
+                    tokens = random.randint(100, 800)
                     cost_per_token = MODEL_COSTS.get(agent.model, 0.01)
                     cost_increment = (tokens / 1000) * cost_per_token
                     
                     agent.cost = round(agent.cost + cost_increment, 4)
+                    agent.tasks_completed += random.choice([0, 0, 1])
+                    agent.response_time = round(random.uniform(200, 1500), 2)
                     agent.last_update = datetime.now().isoformat()
                     
                     crew_state.total_cost = round(
                         sum(a.cost for a in agents.values()), 4
                     )
                     
+                    # Telemetry Broadcast
+                    await manager.broadcast({
+                        "type": "telemetry",
+                        "agent_id": agent_id,
+                        "data": {
+                            "cost": agent.cost,
+                            "status": agent.status.value,
+                            "tasks_completed": agent.tasks_completed,
+                            "response_time": agent.response_time
+                        }
+                    })
+
                     if crew_state.total_cost > crew_state.budget_limit:
                         crew_state.is_running = False
                         await manager.broadcast({
@@ -243,15 +285,6 @@ async def simulate_agent_updates():
                         })
                         print(f"[Crew] 🛑 Budget exceeded! Total: ${crew_state.total_cost:.4f}")
                         break
-                    
-                    await manager.broadcast({
-                        "type": "cost_update",
-                        "agent_id": agent_id,
-                        "data": {
-                            "cost": agent.cost,
-                            "status": agent.status.value
-                        }
-                    })
         
         await asyncio.sleep(2)
 

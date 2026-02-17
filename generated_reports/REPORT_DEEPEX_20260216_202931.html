@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEEPEX EXCELLENCE AUDIT REPORT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a5f',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Print-friendly styles */
+        @media print {
+            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+            header { position: relative !important; }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Gradient backgrounds */
+        .gradient-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #3b82f6 100%);
+        }
+
+        /* Card styles */
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+        }
+
+        /* Score circle */
+        .score-circle {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .score-circle::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border-radius: 50%;
+            background: white;
+        }
+        .score-circle span {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Progress bar animation */
+        .progress-bar {
+            transition: width 0.8s ease-out;
+        }
+
+        /* Table styles */
+        .data-table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .data-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .data-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        .data-table tbody tr:hover {
+            background: #f8fafc;
+        }
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        /* Severity badges */
+        .severity-critical { background: #dc2626; color: white; }
+        .severity-high { background: #ea580c; color: white; }
+        .severity-moderate { background: #fbbf24; color: #78350f; }
+        .severity-low { background: #dbeafe; color: #1e40af; }
+        .severity-info { background: #f1f5f9; color: #475569; }
+
+        /* Status badges */
+        .status-excellent { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+        .status-good { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+        .status-moderate { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+        .status-needs-work { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+
+        /* TOC Navigation */
+        .toc-link {
+            color: #64748b;
+            transition: color 0.15s ease;
+        }
+        .toc-link:hover {
+            color: #3b82f6;
+        }
+
+        /* Smooth scroll */
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans antialiased">
+
+    <!-- Sticky Navigation (Print Hidden) -->
+    <nav class="fixed top-0 right-0 p-4 z-50 no-print">
+        <button onclick="window.print()" class="bg-white shadow-lg rounded-full p-3 hover:bg-slate-50 transition-colors" title="Print Report">
+            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+        </button>
+    </nav>
+
+    <!-- Header -->
+    <header class="gradient-header text-white">
+        <div class="max-w-6xl mx-auto px-6 py-10">
+            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+                <div>
+                    <span class="inline-flex items-center px-3 py-1 text-xs font-bold bg-white/20 backdrop-blur rounded-full mb-4 uppercase tracking-wider">
+                        <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        AUDIT REPORT
+                    </span>
+                    <h1 class="text-3xl md:text-4xl font-bold mb-2 leading-tight">DEEPEX EXCELLENCE AUDIT REPORT</h1>
+                    <p class="text-white/90 text-lg font-medium mt-1">DEEPEX Evolution Audit: MW-Vision</p>
+                    <p class="text-blue-200 text-sm font-mono mt-1">l:\nicedev-Project\MW-Vision</p>
+                    <p class="text-blue-100 text-sm mt-2">
+                        <span class="bg-white/10 px-2 py-0.5 rounded">Mode: SOLO_AUDIT</span>
+                    </p>
+                </div>
+                <div class="text-left md:text-right text-sm space-y-1">
+                    <p class="text-blue-200">Report Generated</p>
+                    <p class="font-semibold text-lg">2026-02-16 20:29:31</p>
+                    <p class="text-blue-200 text-xs mt-2">Version 2.0.3</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 py-8 -mt-6">
+
+        <!-- Executive Summary Card (Bottom-line conclusion FIRST - per IIA guidelines) -->
+        <section class="card p-6 mb-8 border-l-4 border-blue-500" id="executive-summary">
+            <div class="flex flex-col lg:flex-row lg:items-center gap-8">
+
+                <!-- Score Display -->
+                <div class="flex-shrink-0">
+                    <div class="score-circle
+bg-gradient-to-br from-emerald-400 to-emerald-600
+">
+                        <span class="text-3xl font-bold text-slate-800">92.49%</span>
+                    </div>
+                </div>
+
+                <!-- Summary Content -->
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-3">
+                        <h2 class="text-xl font-bold text-slate-800">Executive Summary</h2>
+                        <span class="badge
+status-moderate">
+                            Unknown
+                        </span>
+                    </div>
+
+                    <p class="text-slate-600 leading-relaxed mb-4">**Note:** This report was generated by DEEPEX v4 Autonomous Intelligence. All metrics are real measurements. No mocks or fake data.</p>
+
+                    <!-- Quick Stats -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Satisfaction</p>
+                            <p class="text-lg font-semibold text-slate-800">Unsatisfied</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Termination Reason</p>
+                            <p class="text-lg font-semibold text-slate-800">Iteration Limit Reached</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Iterations</p>
+                            <p class="text-lg font-semibold text-slate-800">3</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Time Elapsed</p>
+                            <p class="text-lg font-semibold text-slate-800">4.1s</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Token Usage</p>
+                            <p class="text-lg font-semibold text-slate-800">0 tokens</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Estimated Cost</p>
+                            <p class="text-lg font-semibold text-slate-800">$0.0000 USD</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Lines of Code</p>
+                            <p class="text-lg font-semibold text-slate-800">2,333</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">DEEPEX Version</p>
+                            <p class="text-lg font-semibold text-slate-800">5.0.0</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Evaluation ID</p>
+                            <p class="text-lg font-semibold text-slate-800">1256940f</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings Alert (High Priority - per audit best practices) -->
+        <section class="card mb-8 overflow-hidden" id="findings">
+            <div class="bg-red-50 border-b border-red-100 px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Findings & Issues</h2>
+                        <p class="text-sm text-slate-600">24 issue(s) detected requiring attention</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-critical
+">
+                            CRITICAL
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded ip detected: 0.0.0.0...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-critical
+">
+                            CRITICAL
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded ip detected: 127.0.0.1...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/agents&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/crew&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/security&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://localhost:5189...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://127.0.0.1:5189...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://localhost:5189/...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-critical
+">
+                            CRITICAL
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded ip detected: 0.0.0.0...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-critical
+">
+                            CRITICAL
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded ip detected: 127.0.0.1...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/agents&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/crew&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/security&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://localhost:5189...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://127.0.0.1:5189...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://localhost:5189/...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-critical
+">
+                            CRITICAL
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded ip detected: 0.0.0.0...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-critical
+">
+                            CRITICAL
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded ip detected: 127.0.0.1...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/agents&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/crew&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential absolute path detected: &#34;/api/security&#34;...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://localhost:5189...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://127.0.0.1:5189...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <span class="badge flex-shrink-0
+severity-high
+">
+                            HIGH
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800">Hardcoded Security</p>
+                            <p class="text-sm text-slate-600 mt-1">Potential hardcoded url detected: http://localhost:5189/...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Category Scores (Detailed Metrics) -->
+        <section class="card mb-8 overflow-hidden" id="category-scores">
+            <div class="bg-slate-50 border-b border-slate-200 px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Category Scores</h2>
+                        <p class="text-sm text-slate-600">Detailed breakdown by evaluation category</p>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="data-table w-full">
+                    <thead>
+                        <tr>
+                            <th class="w-2/5">Category</th>
+                            <th class="w-2/5">Score</th>
+                            <th class="w-1/5">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="font-medium text-slate-700">Hardcoded Security</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-red-500"
+                                            style="width: 0.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">0.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-red-100 text-red-800 border-red-200">
+                                    NEEDS IMPROVEMENT 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Resource Requirements</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 70.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">70.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Implementation Detail</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 71.9%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">71.9%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Timeline Realism</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 75.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">75.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Technical Feasibility</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Architecture Soundness</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Skill Requirements</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Production Readiness</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 85.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">85.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Meta Evaluation Quality</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 85.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">85.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Performance Criteria</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 90.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">90.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Operational Resilience</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 90.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">90.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Modular Coupling</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Security</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Documentation Quality</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Testing Strategy</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Integration Capability</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Failure Mode Resilience</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Quality Standards</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Hardcoded Security</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-red-500"
+                                            style="width: 0.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">0.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-red-100 text-red-800 border-red-200">
+                                    NEEDS IMPROVEMENT 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Resource Requirements</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 70.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">70.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Implementation Detail</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 71.9%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">71.9%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Timeline Realism</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 75.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">75.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Technical Feasibility</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Architecture Soundness</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Skill Requirements</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Production Readiness</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 85.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">85.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Meta Evaluation Quality</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 85.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">85.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Performance Criteria</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 90.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">90.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Operational Resilience</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 90.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">90.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Modular Coupling</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Security</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Documentation Quality</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Testing Strategy</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Integration Capability</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Failure Mode Resilience</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Quality Standards</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Hardcoded Security</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-red-500"
+                                            style="width: 0.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">0.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-red-100 text-red-800 border-red-200">
+                                    NEEDS IMPROVEMENT 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Resource Requirements</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 70.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">70.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Implementation Detail</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 71.9%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">71.9%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Timeline Realism</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-amber-500
+"
+                                            style="width: 75.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">75.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-amber-100 text-amber-800 border-amber-200">
+                                    Moderate 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Technical Feasibility</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Architecture Soundness</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Skill Requirements</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 80.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">80.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Production Readiness</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 85.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">85.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Meta Evaluation Quality</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-sky-500
+"
+                                            style="width: 85.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">85.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-sky-100 text-sky-800 border-sky-200">
+                                    Good 🚩 **GAP**
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Performance Criteria</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 90.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">90.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Operational Resilience</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 90.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">90.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Modular Coupling</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Security</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Documentation Quality</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Testing Strategy</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Integration Capability</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Failure Mode Resilience</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium text-slate-700">Quality Standards</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="h-full rounded-full progress-bar
+bg-emerald-500
+"
+                                            style="width: 100.0%">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-slate-700 w-14 text-right">100.0%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge border bg-emerald-100 text-emerald-800 border-emerald-200">
+                                    Excellent
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Qualitative Assessment -->
+        <section class="card mb-8 overflow-hidden" id="qualitative">
+            <div class="bg-purple-50 border-b border-purple-100 px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Qualitative Assessment</h2>
+                        <p class="text-sm text-slate-600">Subjective evaluation of code quality aspects</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Code Elegance</p>
+                        <p class="text-sm text-slate-600">Moderate - standard implementation</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Developer Satisfaction</p>
+                        <p class="text-sm text-slate-600">Good - clear structure</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Maintainer Happiness</p>
+                        <p class="text-sm text-slate-600">Moderate - needs documentation</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Architectural Beauty</p>
+                        <p class="text-sm text-slate-600">Good - logical organization</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Code Elegance</p>
+                        <p class="text-sm text-slate-600">Moderate - standard implementation</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Developer Satisfaction</p>
+                        <p class="text-sm text-slate-600">Good - clear structure</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Maintainer Happiness</p>
+                        <p class="text-sm text-slate-600">Moderate - needs documentation</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Architectural Beauty</p>
+                        <p class="text-sm text-slate-600">Good - logical organization</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Code Elegance</p>
+                        <p class="text-sm text-slate-600">Moderate - standard implementation</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Developer Satisfaction</p>
+                        <p class="text-sm text-slate-600">Good - clear structure</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Maintainer Happiness</p>
+                        <p class="text-sm text-slate-600">Moderate - needs documentation</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-purple-200 transition-colors">
+                        <p class="font-semibold text-slate-800 mb-1">Architectural Beauty</p>
+                        <p class="text-sm text-slate-600">Good - logical organization</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AutoFix Results -->
+
+        <!-- Recommendations (SMART format per audit guidelines) -->
+        <section class="card mb-8 overflow-hidden" id="recommendations">
+            <div class="bg-blue-50 border-b border-blue-100 px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Recommendations</h2>
+                        <p class="text-sm text-slate-600">27 actionable improvement(s) identified</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6">
+                <ol class="space-y-3">
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-blue-600 text-white">
+                            1
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[CRITICAL] Hardcoded Security scored 0.0% - Immediate action required [CRITICAL] Hardcoded Security scored 0.0% - Immediate action required</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-blue-600 text-white">
+                            2
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[MODERATE] Resource Requirements scored 70.0% - Improvement recommended [MODERATE] Resource Requirements scored 70.0% - Improvement recommended</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-blue-600 text-white">
+                            3
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[MODERATE] Implementation Detail scored 71.9% - Improvement recommended [MODERATE] Implementation Detail scored 71.9% - Improvement recommended</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            4
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Timeline Realism scored 75.0% - Good, but can be better [OPTIMIZE] Timeline Realism scored 75.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            5
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Technical Feasibility scored 80.0% - Good, but can be better [OPTIMIZE] Technical Feasibility scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            6
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Architecture Soundness scored 80.0% - Good, but can be better [OPTIMIZE] Architecture Soundness scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            7
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Skill Requirements scored 80.0% - Good, but can be better [OPTIMIZE] Skill Requirements scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            8
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Production Readiness scored 85.0% - Good, but can be better [OPTIMIZE] Production Readiness scored 85.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            9
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Meta Evaluation Quality scored 85.0% - Good, but can be better [OPTIMIZE] Meta Evaluation Quality scored 85.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            10
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[CRITICAL] Hardcoded Security scored 0.0% - Immediate action required [CRITICAL] Hardcoded Security scored 0.0% - Immediate action required</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            11
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[MODERATE] Resource Requirements scored 70.0% - Improvement recommended [MODERATE] Resource Requirements scored 70.0% - Improvement recommended</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            12
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[MODERATE] Implementation Detail scored 71.9% - Improvement recommended [MODERATE] Implementation Detail scored 71.9% - Improvement recommended</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            13
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Timeline Realism scored 75.0% - Good, but can be better [OPTIMIZE] Timeline Realism scored 75.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            14
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Technical Feasibility scored 80.0% - Good, but can be better [OPTIMIZE] Technical Feasibility scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            15
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Architecture Soundness scored 80.0% - Good, but can be better [OPTIMIZE] Architecture Soundness scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            16
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Skill Requirements scored 80.0% - Good, but can be better [OPTIMIZE] Skill Requirements scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            17
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Production Readiness scored 85.0% - Good, but can be better [OPTIMIZE] Production Readiness scored 85.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            18
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Meta Evaluation Quality scored 85.0% - Good, but can be better [OPTIMIZE] Meta Evaluation Quality scored 85.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            19
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[CRITICAL] Hardcoded Security scored 0.0% - Immediate action required [CRITICAL] Hardcoded Security scored 0.0% - Immediate action required</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            20
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[MODERATE] Resource Requirements scored 70.0% - Improvement recommended [MODERATE] Resource Requirements scored 70.0% - Improvement recommended</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            21
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[MODERATE] Implementation Detail scored 71.9% - Improvement recommended [MODERATE] Implementation Detail scored 71.9% - Improvement recommended</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            22
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Timeline Realism scored 75.0% - Good, but can be better [OPTIMIZE] Timeline Realism scored 75.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            23
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Technical Feasibility scored 80.0% - Good, but can be better [OPTIMIZE] Technical Feasibility scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            24
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Architecture Soundness scored 80.0% - Good, but can be better [OPTIMIZE] Architecture Soundness scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            25
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Skill Requirements scored 80.0% - Good, but can be better [OPTIMIZE] Skill Requirements scored 80.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            26
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Production Readiness scored 85.0% - Good, but can be better [OPTIMIZE] Production Readiness scored 85.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-blue-50/50 transition-colors">
+                        <span class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold
+bg-slate-200 text-slate-700">
+                            27
+                        </span>
+                        <div class="flex-1 pt-1">
+                            <p class="text-slate-700 leading-relaxed">[OPTIMIZE] Meta Evaluation Quality scored 85.0% - Good, but can be better [OPTIMIZE] Meta Evaluation Quality scored 85.0% - Good, but can be better</p>
+                        </div>
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="mt-12 pt-8 border-t border-slate-200">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    <span>Generated by <strong>Report Generator Skill</strong> v2.0.3</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span>2026-02-16 20:29:31</span>
+                    <span class="text-slate-300">|</span>
+                    <span>All metrics are real measurements</span>
+                </div>
+            </div>
+            <p class="text-center text-xs text-slate-400 mt-6">
+                Based on IIA Audit Report Writing Guidelines and industry best practices.
+                <br class="md:hidden"> Use Ctrl+P to save as PDF.
+            </p>
+        </footer>
+    </main>
+</body>
+</html>

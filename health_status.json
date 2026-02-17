@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-02-16T22:11:12.689721",
+  "services": {
+    "mw-vision-backend": {
+      "status": "unhealthy",
+      "last_check": "2026-02-16T22:11:12.664724",
+      "failures": 13
+    },
+    "mw-vision-frontend": {
+      "status": "healthy",
+      "last_check": "2026-02-16T22:11:12.688720",
+      "failures": 0
+    }
+  }
+}
