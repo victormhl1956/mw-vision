@@ -13,7 +13,6 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCrewStore } from '../stores/crewStore'
-import { formatCost } from '../utils/formatters'
 
 // Agent Node Data Type
 interface AgentNodeData {
@@ -47,7 +46,7 @@ function AgentNode({ data }: { data: AgentNodeData }) {
         <div className="font-mono">{data.model}</div>
         <div className="flex justify-between">
           <span>Cost:</span>
-          <span className="text-osint-cyan font-mono">{formatCost(data.cost)}</span>
+          <span className="text-osint-cyan font-mono">${data.cost}</span>
         </div>
       </div>
     </div>
@@ -100,7 +99,7 @@ export default function FlowCanvas() {
         label: agent.name,
         model: agent.model,
         status: agent.status,
-        cost: agent.totalCost,
+        cost: agent.totalCost.toFixed(2),
       },
     }))
 
@@ -152,7 +151,7 @@ export default function FlowCanvas() {
             data: {
               ...node.data,
               status: agent.status,
-              cost: agent.totalCost,
+              cost: agent.totalCost.toFixed(2),
             },
           }
         }

@@ -4,7 +4,6 @@ import { useCrewStore } from '../stores/crewStore'
 import { useToast } from '../components/Toast'
 import FlowCanvas from '../components/FlowCanvas'
 import { StrategicCoordinatorPanel } from '../components/StrategicCoordinatorPanel'
-import { formatCost } from '../utils/formatters'
 
 export default function FlowView() {
   const {
@@ -109,11 +108,11 @@ export default function FlowView() {
             <div>
               <div className="text-xs text-osint-text-dim">Estimated Cost</div>
               <div className={`text-lg font-bold font-mono ${budgetWarning ? 'text-osint-red' : 'text-osint-cyan'}`}>
-                {formatCost(estimatedCost)}
+                ${estimatedCost.toFixed(2)}
               </div>
               {budgetWarning && (
                 <div className="text-xs text-osint-red font-semibold mt-1">
-                  Exceeds budget ({formatCost(budgetLimit)})
+                  Exceeds budget (${budgetLimit})
                 </div>
               )}
             </div>
@@ -126,7 +125,7 @@ export default function FlowView() {
             <div className="flex items-center justify-between">
               <span className="text-osint-text-dim">Total Cost Accumulated:</span>
               <span className="text-xl font-bold font-mono text-osint-green">
-                {formatCost(totalCost)}
+                ${totalCost.toFixed(2)}
               </span>
             </div>
           </div>

@@ -12,7 +12,6 @@ import BlueprintView from './views/BlueprintView'
 import SecurityDashboard from './components/security/SecurityDashboard'
 import { useCrewStore } from './stores/crewStore'
 import { runTests, getTestSummary } from './services/browserInteractor'
-import { formatCost } from './utils/formatters'
 
 type ViewType = 'flow' | 'team' | 'mission' | 'blueprint'
 
@@ -117,9 +116,9 @@ function App() {
               <div className="flex items-center gap-2 px-4 py-2 bg-osint-panel/50 rounded-lg border border-osint-cyan/20">
                 <span className="text-sm text-osint-text-dim">Cost:</span>
                 <span className={`text-sm font-mono font-semibold ${totalCost > budgetLimit ? 'text-red-500' : totalCost > budgetLimit * 0.8 ? 'text-orange-500' : 'text-osint-green'}`}>
-                  {formatCost(totalCost)}
+                  ${totalCost.toFixed(2)}
                 </span>
-                <span className="text-xs text-osint-text-muted">/ {formatCost(budgetLimit)}</span>
+                <span className="text-xs text-osint-text-muted">/ ${budgetLimit}</span>
               </div>
 
               <div className="w-24 h-2 bg-osint-panel rounded-full overflow-hidden">
