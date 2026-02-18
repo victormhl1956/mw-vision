@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Play, Pause, RotateCcw, DollarSign, Layers } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { Play, Pause, RotateCcw, DollarSign, Layers, LayoutGrid } from 'lucide-react'
 import { useCrewStore } from '../stores/crewStore'
 import { useToast } from '../components/Toast'
 import FlowCanvas from '../components/FlowCanvas'
@@ -21,6 +21,18 @@ export default function FlowView() {
   } = useCrewStore()
 
   const { showToast } = useToast()
+  const [resetLayout, setResetLayout] = useState(false)
+
+  const handleResetLayout = useCallback(() => {
+    setResetLayout(true)
+    showToast('info', 'Canvas layout reset to default positions.')
+    // Flip flag back so future renders don't keep resetting
+    setTimeout(() => setResetLayout(false), 100)
+  }, [showToast])
+
+  const handleLayoutSaved = useCallback(() => {
+    showToast('success', 'Canvas layout saved to browser storage.')
+  }, [showToast])
 
   // Calculate estimated cost based on current configuration
   useEffect(() => {
@@ -135,17 +147,27 @@ export default function FlowView() {
 
       {/* React Flow Canvas */}
       <div className="relative glass-panel p-6 rounded-lg">
-        <div className="flex items-center gap-2 mb-4">
-          <Layers className="w-5 h-5 text-osint-cyan" />
-          <h2 className="text-xl font-orbitron font-bold text-osint-cyan">
-            Agent Flow Canvas
-          </h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-osint-cyan" />
+            <h2 className="text-xl font-orbitron font-bold text-osint-cyan">
+              Agent Flow Canvas
+            </h2>
+          </div>
+          <button
+            onClick={handleResetLayout}
+            title="Reset canvas to default node positions"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-osint-purple/20 border border-osint-purple/50 text-osint-purple hover:bg-osint-purple/30 transition-colors"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Reset Layout
+          </button>
         </div>
-        <FlowCanvas />
+        <FlowCanvas resetLayout={resetLayout} onLayoutSaved={handleLayoutSaved} />
         <StrategicCoordinatorPanel />
         <div className="mt-4 p-4 bg-osint-panel/50 rounded border border-osint-cyan/20">
           <p className="text-osint-text-dim text-sm">
-            <span className="text-osint-cyan font-semibold">Interactive Canvas:</span> Drag nodes to rearrange, connect agents to define workflows, and see real-time status updates.
+            <span className="text-osint-cyan font-semibold">Interactive Canvas:</span> Drag nodes to rearrange, connect agents to define workflows. Layout auto-saves on drag — click <span className="text-osint-cyan">Save Layout</span> to persist manually.
           </p>
         </div>
       </div>

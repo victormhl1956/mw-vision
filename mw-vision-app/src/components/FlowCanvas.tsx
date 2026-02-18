@@ -10,10 +10,13 @@ import {
   addEdge,
   useNodesState,
   useEdgesState,
+  NodeChange,
+  EdgeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCrewStore } from '../stores/crewStore'
 import { formatCost } from '../utils/formatters'
+import { useFlowPersistence, applyPersistedPositions } from '../hooks/useFlowPersistence'
 
 // Agent Node Data Type
 interface AgentNodeData {
@@ -81,11 +84,19 @@ const nodeTypes = {
   coordinator: CoordinatorNode,
 }
 
-export default function FlowCanvas() {
-  const { agents } = useCrewStore()
+interface FlowCanvasProps {
+  /** Called when the user manually saves the layout. */
+  onLayoutSaved?: () => void
+  /** When true, resets node positions to defaults and clears storage. */
+  resetLayout?: boolean
+}
 
-  // Convert agents to React Flow nodes
-  const initialNodes: Node[] = useMemo(() => {
+export default function FlowCanvas({ onLayoutSaved, resetLayout }: FlowCanvasProps) {
+  const { agents } = useCrewStore()
+  const { saveLayout, loadLayout, clearLayout } = useFlowPersistence()
+
+  // Build default nodes from live agent store
+  const defaultNodes: Node[] = useMemo(() => {
     const scAgent = agents.find(a => a.id === '0')
     const otherAgents = agents.filter(a => a.id !== '0')
 
@@ -119,7 +130,7 @@ export default function FlowCanvas() {
     return [scNode, ...agentNodes]
   }, [agents])
 
-  const initialEdges: Edge[] = useMemo(() => {
+  const defaultEdges: Edge[] = useMemo(() => {
     const otherAgents = agents.filter(a => a.id !== '0')
     return otherAgents.map(agent => ({
       id: `sc-to-${agent.id}`,
@@ -132,6 +143,19 @@ export default function FlowCanvas() {
     }))
   }, [agents])
 
+  // Restore persisted positions on first render
+  const initialNodes: Node[] = useMemo(() => {
+    const saved = loadLayout()
+    return saved ? applyPersistedPositions(defaultNodes, saved) : defaultNodes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally empty — run once on mount
+
+  const initialEdges: Edge[] = useMemo(() => {
+    const saved = loadLayout()
+    return saved?.edges ?? defaultEdges
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally empty — run once on mount
+
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
@@ -140,7 +164,35 @@ export default function FlowCanvas() {
     [setEdges]
   )
 
-  // Update nodes when agents change
+  // Auto-save on every node position change (drag end)
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onNodesChange(changes)
+      // Only persist on position changes to avoid flooding storage
+      const hasPositionChange = changes.some(c => c.type === 'position' && !c.dragging)
+      if (hasPositionChange) {
+        setNodes(nds => {
+          saveLayout(nds, edges)
+          return nds
+        })
+      }
+    },
+    [onNodesChange, saveLayout, edges, setNodes]
+  )
+
+  // Auto-save when edges change (connect / disconnect)
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      onEdgesChange(changes)
+      setEdges(eds => {
+        saveLayout(nodes, eds)
+        return eds
+      })
+    },
+    [onEdgesChange, saveLayout, nodes, setEdges]
+  )
+
+  // Update live data (status, cost) when agents change — preserve positions
   useEffect(() => {
     setNodes((nds) =>
       nds.map((node) => {
@@ -160,7 +212,7 @@ export default function FlowCanvas() {
       })
     )
 
-    // Update edges animation
+    // Update edge animation without touching positions
     setEdges((eds) =>
       eds.map(edge => {
         const agent = agents.find(a => edge.target === a.id)
@@ -172,13 +224,27 @@ export default function FlowCanvas() {
     )
   }, [agents, setNodes, setEdges])
 
+  // Handle external reset request
+  useEffect(() => {
+    if (!resetLayout) return
+    clearLayout()
+    setNodes(defaultNodes)
+    setEdges(defaultEdges)
+  }, [resetLayout, clearLayout, defaultNodes, defaultEdges, setNodes, setEdges])
+
+  // Expose manual save via callback
+  const handleManualSave = useCallback(() => {
+    saveLayout(nodes, edges)
+    onLayoutSaved?.()
+  }, [nodes, edges, saveLayout, onLayoutSaved])
+
   return (
-    <div className="h-[500px] w-full rounded-lg overflow-hidden border border-osint-cyan/30">
+    <div className="h-[500px] w-full rounded-lg overflow-hidden border border-osint-cyan/30 relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
         fitView
@@ -196,6 +262,15 @@ export default function FlowCanvas() {
           }}
         />
       </ReactFlow>
+
+      {/* Manual Save button overlay */}
+      <button
+        onClick={handleManualSave}
+        title="Save current layout to browser storage"
+        className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-osint-cyan/20 border border-osint-cyan/50 text-osint-cyan hover:bg-osint-cyan/30 transition-colors"
+      >
+        Save Layout
+      </button>
     </div>
   )
 }

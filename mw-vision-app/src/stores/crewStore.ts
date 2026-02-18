@@ -99,8 +99,9 @@ export const useCrewStore = create<CrewState>((set, get) => ({
         connectionStatus: 'connected'
       })
 
-      // Setup WebSocket - Pointing to real backend port
-      const WS_URL = 'ws://localhost:8000/ws'
+      // Setup WebSocket — base URL from env (supports Tailscale remote access)
+      const WS_BASE = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8000'
+      const WS_URL = `${WS_BASE}/ws`
       const ws = new WebSocket(WS_URL)
 
       ws.onmessage = (event: MessageEvent) => {
