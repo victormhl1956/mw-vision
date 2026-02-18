@@ -31,6 +31,31 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from enum import Enum
 
+# ── CW-Vision Ecosystem Integrations (graceful degradation) ──────────────────
+import sys
+import os
+from pathlib import Path
+
+# Add routers + modules to path
+_BACKEND_DIR = Path(__file__).parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+
+_yt_router = None
+_chat_router = None
+
+try:
+    from routers.yt_processor import router as _yt_router_obj
+    _yt_router = _yt_router_obj
+except Exception as _e:
+    print(f"[MW-Vision] YT Processor router not loaded: {_e}")
+
+try:
+    from modules.chat_processor.router import router as _chat_router_obj
+    _chat_router = _chat_router_obj
+except Exception as _e:
+    print(f"[MW-Vision] Chat Processor router not loaded: {_e}")
+
 # ============================================================================
 # Security: Rate Limiting
 # ============================================================================
@@ -318,6 +343,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Register CW-Vision ecosystem routers ─────────────────────────────────────
+if _yt_router is not None:
+    app.include_router(_yt_router)
+    print("[MW-Vision] YT Processor router registered (/api/yt/*)")
+
+if _chat_router is not None:
+    app.include_router(_chat_router)
+    print("[MW-Vision] Chat Processor router registered (/api/chat/*)")
+
 # ============================================================================
 # REST Endpoints
 # ============================================================================
@@ -338,7 +372,17 @@ async def root():
             "health": "/health",
             "agents": "/api/agents",
             "crew": "/api/crew",
-            "security": "/api/security"
+            "security": "/api/security",
+            "yt_search": "/api/yt/search",
+            "yt_status": "/api/yt/status",
+            "yt_videos": "/api/yt/videos",
+            "chat_ingest": "/api/chat/ingest",
+            "chat_platforms": "/api/chat/platforms",
+            "chat_conversations": "/api/chat/conversations",
+        },
+        "ecosystem": {
+            "yt_processor": _yt_router is not None,
+            "chat_processor": _chat_router is not None,
         }
     }
 
