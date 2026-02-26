@@ -14,8 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +46,7 @@ def parse_gemini_json(file_path: Path) -> ConversationExport:
     export = ConversationExport(
         source="gemini",
         conversation_id=file_path.stem,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
     # Why: Gemini exports can have different structures
@@ -114,7 +113,7 @@ def parse_gemini_api_response(
     """
     export = ConversationExport(
         source="gemini_api",
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
     # Why: add the prompt as human message

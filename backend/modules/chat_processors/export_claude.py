@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -82,7 +82,7 @@ def parse_jsonl_transcript(file_path: Path) -> ConversationExport:
     export = ConversationExport(
         source="claude_code",
         conversation_id=file_path.stem,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
     lines = file_path.read_text(encoding="utf-8").strip().split("\n")
@@ -162,7 +162,7 @@ def parse_api_conversation(
         source="claude_api",
         conversation_id=metadata.get("id", ""),
         model=metadata.get("model", ""),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
     for msg in messages:

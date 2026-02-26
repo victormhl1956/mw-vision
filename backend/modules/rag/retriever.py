@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
 
 from indexer import IndexedChunk, KnowledgeIndexer
 
@@ -129,7 +128,7 @@ class KnowledgeRetriever:
                 vec, min(top_k, len(self.indexer.chunks))
             )
 
-            for dist, idx in zip(distances[0], indices[0]):
+            for dist, idx in zip(distances[0], indices[0], strict=False):
                 if idx < 0 or idx >= len(self.indexer.chunks):
                     continue
 

@@ -15,7 +15,7 @@ import hashlib
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +66,7 @@ def consolidate_exports(
         ConsolidatedCorpus ready for RAG indexing.
     """
     corpus = ConsolidatedCorpus(
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
     seen_hashes: set[str] = set()

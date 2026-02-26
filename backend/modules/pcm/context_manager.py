@@ -12,7 +12,6 @@ Integration Points: rag/retriever.py, chat_processors/, CLAUDE.md
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any

@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -289,5 +289,5 @@ class KnowledgeIndexer:
             total_conversations=len(conv_ids),
             sources=sources,
             embedding_dim=self.embedding_dim,
-            last_updated=datetime.now(timezone.utc).isoformat(),
+            last_updated=datetime.now(UTC).isoformat(),
         )
