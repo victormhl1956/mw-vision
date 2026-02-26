@@ -62,6 +62,9 @@ class KnowledgeIndexer:
         index_dir: Path | None = None,
         embedding_dim: int = 384,
     ):
+        if embedding_dim < 1:
+            raise ValueError(f"embedding_dim must be >= 1, got {embedding_dim}")
+
         self.index_dir = index_dir or INDEX_DIR
         self.embedding_dim = embedding_dim
         self.chunks: list[IndexedChunk] = []
@@ -158,7 +161,7 @@ class KnowledgeIndexer:
 
         for i, word in enumerate(words):
             h = int(
-                hashlib.md5(word.encode()).hexdigest(), 16
+                hashlib.sha256(word.encode()).hexdigest(), 16
             )
             idx = h % self.embedding_dim
             embedding[idx] += 1.0 / (i + 1)

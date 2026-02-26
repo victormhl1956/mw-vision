@@ -42,7 +42,15 @@ def parse_gemini_json(file_path: Path) -> ConversationExport:
     if not file_path.exists():
         raise FileNotFoundError(f"Gemini export not found: {file_path}")
 
-    data = json.loads(file_path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        logger.error("Failed to parse Gemini JSON %s: %s", file_path, exc)
+        return ConversationExport(
+            source="gemini",
+            conversation_id=file_path.stem,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
     export = ConversationExport(
         source="gemini",
         conversation_id=file_path.stem,

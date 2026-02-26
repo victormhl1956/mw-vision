@@ -82,6 +82,12 @@ class KnowledgeRetriever:
         Returns:
             RetrievalResponse with ranked results.
         """
+        if top_k < 1:
+            raise ValueError(f"top_k must be >= 1, got {top_k}")
+        if method not in ("auto", "faiss", "keyword"):
+            logger.warning("Unknown method '%s', falling back to keyword", method)
+            method = "keyword"
+
         if not self.indexer.chunks:
             return RetrievalResponse(
                 query=query,

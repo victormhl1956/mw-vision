@@ -172,7 +172,11 @@ def load_corpus(corpus_path: Path) -> ConsolidatedCorpus:
     if not corpus_path.exists():
         raise FileNotFoundError(f"Corpus not found: {corpus_path}")
 
-    data = json.loads(corpus_path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(corpus_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        logger.error("Failed to parse corpus %s: %s", corpus_path, exc)
+        raise ValueError(f"Malformed corpus JSON: {exc}") from exc
 
     return ConsolidatedCorpus(
         timestamp=data.get("timestamp", ""),
@@ -200,6 +204,9 @@ def extract_knowledge_chunks(
     Returns:
         List of chunk dicts with text, metadata, and source info.
     """
+    if max_chunk_chars < 1:
+        raise ValueError(f"max_chunk_chars must be >= 1, got {max_chunk_chars}")
+
     chunks = []
 
     for conv in corpus.conversations:
