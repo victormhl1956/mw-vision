@@ -65,6 +65,9 @@ except Exception as _e:
     _ecosystem_errors["chat_processor"] = f"{type(_e).__name__}: {_e}"
     print(f"[MW-Vision] Chat Processor router not loaded: {_e}")
 
+# Close code 1008 = policy violation, enviado antes de aceptar el handshake.
+_WS_POLICY_VIOLATION = 1008
+
 # ============================================================================
 # Security: Rate Limiting
 # ============================================================================
@@ -464,7 +467,25 @@ async def get_security_metrics():
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint with security."""
     client_ip = websocket.client.host if websocket.client else "unknown"
-    
+
+    # Autentica ANTES de aceptar. Este archivo define su propio /ws y no incluye
+    # routers/websocket.py, así que la corrección del 2026-10-01 nunca llegó
+    # aquí: RUN-MW-VISION.bat arranca `uvicorn main:app` y este endpoint seguía
+    # atendiendo a cualquiera. Lo encontró el test que recorre el árbol buscando
+    # endpoints WebSocket sin verificador, no una lectura mía.
+    from src.security.audit_logger import get_audit_logger
+    from src.security.websocket_auth import get_authenticator
+
+    token = websocket.query_params.get("token", "")
+    autorizado = get_authenticator().verify_token(token)
+    get_audit_logger().log_websocket_connection(client_ip, autorizado)
+    if not autorizado:
+        security_metrics["rejected_connections"] = security_metrics.get(
+            "rejected_connections", 0) + 1
+        print(f"[WS] rejected unauthenticated connection from {client_ip}")
+        await websocket.close(code=_WS_POLICY_VIOLATION)
+        return
+
     # Connect with rate limiting per IP
     connected = await manager.connect(websocket, client_ip)
     if not connected:

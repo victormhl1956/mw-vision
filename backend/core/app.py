@@ -15,6 +15,16 @@ from modules.crew import simulate_agent_updates
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background simulation task."""
+    # La política de confianza de Hydra, aquí y no sólo en main.py. PM2 arranca
+    # main_modular.py, que construye la app con create_app(): tener la compuerta
+    # únicamente en el lifespan de main.py la dejaba fuera del entry point que
+    # de verdad corre en producción. Mismo defecto que vengo arreglando — el
+    # arreglo en un camino que la ejecución no toma — cometido al arreglarlo.
+    # tests/test_entrypoints_wiring.py falla si se quita.
+    from modules.agents.state import agents
+    from modules.agents.trust_gate import exigir_agentes_confiables
+    exigir_agentes_confiables(agents)
+
     task = asyncio.create_task(simulate_agent_updates())
     yield
     task.cancel()
