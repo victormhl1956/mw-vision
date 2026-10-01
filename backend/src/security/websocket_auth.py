@@ -21,14 +21,17 @@ class WebSocketAuthenticator:
     def __init__(self, secret_key: Optional[str] = None):
         raw = secret_key or os.getenv("HYDRA_SECRET_KEY") or os.getenv("WS_SECRET_KEY")
         if not raw:
-            # Warn loudly; generate ephemeral key for this process only.
-            import warnings
-            warnings.warn(
-                "HYDRA_SECRET_KEY not set — using ephemeral key. "
-                "All tokens will be invalidated on restart.",
-                stacklevel=2,
+            # Fail closed. The previous behaviour warned and minted an ephemeral
+            # per-process key: with several PM2 workers, a token signed by one
+            # was rejected by another, so authentication half-worked and the
+            # failures looked like network flakiness. A warning in production
+            # goes nowhere; refusing to start is visible.
+            raise RuntimeError(
+                "HYDRA_SECRET_KEY is not set. WebSocket authentication cannot "
+                "start without a stable signing key shared by every worker. "
+                "Generate one with: python -c \"import secrets; "
+                "print(secrets.token_hex(32))\""
             )
-            raw = secrets.token_hex(32)
         self._secret = raw.encode()
 
     # ------------------------------------------------------------------
@@ -89,14 +92,20 @@ class WebSocketAuthenticator:
 
     def revoke_token(self, token: str) -> None:
         """
-        Revoke a token before expiry.
+        Not implemented, and it says so instead of pretending.
 
-        Note: HMAC-signed tokens are stateless; true revocation requires a
-        deny-list (e.g., Redis set keyed by `jti`).  This stub records the
-        intent; wire up a deny-list in production.
+        HMAC-signed tokens are stateless, so real revocation needs a deny-list
+        keyed by `jti` (Redis, or any store shared by every worker). Until that
+        exists this raises, because the previous body was `pass`: it returned
+        None — the shape of success — while revoking nothing, so any caller that
+        trusted it had revocation as decoration.
+
+        Shorten `expires_hours` in `generate_token` to limit exposure meanwhile.
         """
-        # TODO: Add jti to a Redis deny-list with TTL = token expiry.
-        pass
+        raise NotImplementedError(
+            "Token revocation needs a jti deny-list shared by all workers; it "
+            "is not implemented. Use short-lived tokens until it is."
+        )
 
 
 # ---------------------------------------------------------------------------

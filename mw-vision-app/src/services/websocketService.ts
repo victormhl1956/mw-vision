@@ -1,4 +1,5 @@
 import { useCrewStore, type ConnectionStatus } from '../stores/crewStore';
+import { wsUrl } from './wsUrl';
 
 interface WebSocketMessage {
   type: string;
@@ -16,7 +17,7 @@ class WebSocketService {
   private connectionStatus: ConnectionStatus = 'disconnected';
   private simulationInterval: any = null;
 
-  connect(url: string = 'ws://localhost:8000/ws') {
+  connect(url: string = wsUrl('/ws')) {
     this.currentUrl = url;
     this.connectionStatus = 'connecting';
     this.updateStatus();
