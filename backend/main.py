@@ -44,16 +44,25 @@ if str(_BACKEND_DIR) not in sys.path:
 _yt_router = None
 _chat_router = None
 
+# La causa de cada subsistema que no cargó, no sólo el hecho. Durante meses el
+# chat processor estuvo caído porque platforms.py no definía PLATFORM_REGISTRY:
+# el `except Exception` se lo tragaba, la razón se iba a la salida estándar del
+# proceso y `/` sólo decía `chat_processor: false`. Para saber por qué había que
+# tener el terminal delante. Ahora viaja en la respuesta de `/` y de `/health`.
+_ecosystem_errors: Dict[str, str] = {}
+
 try:
     from routers.yt_processor import router as _yt_router_obj
     _yt_router = _yt_router_obj
 except Exception as _e:
+    _ecosystem_errors["yt_processor"] = f"{type(_e).__name__}: {_e}"
     print(f"[MW-Vision] YT Processor router not loaded: {_e}")
 
 try:
     from modules.chat_processor.router import router as _chat_router_obj
     _chat_router = _chat_router_obj
 except Exception as _e:
+    _ecosystem_errors["chat_processor"] = f"{type(_e).__name__}: {_e}"
     print(f"[MW-Vision] Chat Processor router not loaded: {_e}")
 
 # ============================================================================
@@ -397,6 +406,8 @@ async def root():
         "ecosystem": {
             "yt_processor": _yt_router is not None,
             "chat_processor": _chat_router is not None,
+            # Por qué falta el que falta. Sin esto hacía falta el terminal.
+            "errors": dict(_ecosystem_errors),
         }
     }
 
@@ -404,8 +415,12 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     uptime = (datetime.now() - datetime.fromisoformat(security_metrics["start_time"])).total_seconds()
+    # "healthy" era un literal: un subsistema entero podía estar caído y la
+    # respuesta no cambiaba. Un monitor que lea esto tiene que poder enterarse.
+    caidos = sorted(_ecosystem_errors)
     return {
-        "status": "healthy",
+        "status": "degraded" if caidos else "healthy",
+        "degraded_subsystems": caidos,
         "timestamp": datetime.now().isoformat(),
         "connected_clients": len(manager.active_connections),
         "crew_running": crew_state.is_running,
@@ -427,10 +442,18 @@ async def get_crew_state():
 @app.get("/api/security")
 async def get_security_metrics():
     """Security metrics endpoint."""
+    from src.security.audit_logger import AuditLogger, get_audit_logger
     return {
         "security_metrics": security_metrics,
         "active_connections": len(manager.active_connections),
-        "per_ip_connections": dict(manager.max_connections_per_ip)
+        "per_ip_connections": dict(manager.max_connections_per_ip),
+        # El rastro de auditoría se instrumenta a sí mismo. Si no puede
+        # escribir, no tumba el servicio, pero el número de eventos perdidos
+        # tiene que ser visible o el silencio volvería a parecer normalidad.
+        "audit_trail": {
+            "directory": str(get_audit_logger().log_dir),
+            "write_failures": AuditLogger.write_failures,
+        },
     }
 
 # ============================================================================

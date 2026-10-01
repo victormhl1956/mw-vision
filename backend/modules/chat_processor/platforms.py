@@ -11,12 +11,23 @@ from .models import ParsedConversation, ParsedMessage
 
 @dataclass
 class PlatformConfig:
+    """
+    Una plataforma soportada.
+
+    Los nombres de los campos los fija quien los lee: `router.py` usa
+    `display_name`, `icon` y `export_instructions`. El dataclass declaraba
+    `import_instructions` y no tenía `icon`, así que aunque PLATFORM_REGISTRY
+    hubiese existido, `/api/chat/platforms` habría reventado con AttributeError.
+    `export_instructions` es además el nombre correcto: describen cómo exportar
+    desde la plataforma de origen, no cómo importar aquí.
+    """
     name: str
     display_name: str
+    icon: str
     url_patterns: List[str]
     content_fingerprints: List[str]
     export_formats: List[str]
-    import_instructions: str
+    export_instructions: str
     parse_fn: Callable
 
 
@@ -189,3 +200,158 @@ def _parse_markdown_generic(
     return ParsedConversation(messages=messages, platform=platform, source_url=source_url)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# El registro
+#
+# `platforms.py` terminaba en el quinto parser: PLATFORM_REGISTRY,
+# detect_platform y parse_conversation nunca se escribieron, aunque
+# `__init__.py` y `router.py` los importaban. `main.py` envolvía el import en
+# `except Exception` e imprimía una línea, así que el subsistema completo quedó
+# apagado en silencio desde el principio.
+#
+# Las rutas de menú de las instrucciones son de interfaces ajenas y cambian sin
+# avisar: si alguien reporta que no encuentra la opción, esto es lo primero que
+# hay que revisar, no el parser.
+# ─────────────────────────────────────────────────────────────────────────────
+
+PLATFORM_REGISTRY: Dict[str, PlatformConfig] = {
+    "chatgpt": PlatformConfig(
+        name="chatgpt",
+        display_name="ChatGPT",
+        icon="💬",
+        url_patterns=[r"chatgpt\.com", r"chat\.openai\.com"],
+        # Huellas del formato de exportación de OpenAI: el grafo de mensajes.
+        content_fingerprints=["mapping", "current_node", "create_time"],
+        export_formats=["json"],
+        export_instructions=(
+            "Ajustes → Controles de datos → Exportar datos. Llega un correo "
+            "con un .zip; dentro, conversations.json. Sube ese archivo."),
+        parse_fn=_parse_chatgpt,
+    ),
+    "claude": PlatformConfig(
+        name="claude",
+        display_name="Claude",
+        icon="🅰️",
+        url_patterns=[r"claude\.ai"],
+        content_fingerprints=["chat_messages", "uuid", "sender"],
+        export_formats=["json", "md"],
+        export_instructions=(
+            "Ajustes → Privacidad → Exportar datos. Llega un correo con "
+            "conversations.json. También acepta un markdown pegado."),
+        parse_fn=_parse_claude,
+    ),
+    "gemini": PlatformConfig(
+        name="gemini",
+        display_name="Gemini",
+        icon="♊",
+        url_patterns=[r"gemini\.google\.com", r"bard\.google\.com"],
+        content_fingerprints=["history", "author", "candidates"],
+        export_formats=["json", "md"],
+        export_instructions=(
+            "Google Takeout (takeout.google.com) → selecciona Gemini. "
+            "También acepta un markdown pegado de la conversación."),
+        parse_fn=_parse_gemini,
+    ),
+    "perplexity": PlatformConfig(
+        name="perplexity",
+        display_name="Perplexity",
+        icon="🔍",
+        url_patterns=[r"perplexity\.ai"],
+        content_fingerprints=["query_str", "related_queries", "web_results"],
+        export_formats=["md", "json"],
+        export_instructions=(
+            "Perplexity no exporta en bloque: usa Compartir → Copiar y pega "
+            "el markdown de cada hilo."),
+        parse_fn=_parse_perplexity,
+    ),
+    "deepseek": PlatformConfig(
+        name="deepseek",
+        display_name="DeepSeek",
+        icon="🐋",
+        url_patterns=[r"deepseek\.com"],
+        content_fingerprints=["conversation", "model_class", "deepseek"],
+        export_formats=["json", "md"],
+        export_instructions=(
+            "DeepSeek no tiene exportación propia: copia la conversación y "
+            "pégala como markdown.  Ojo: jurisdicción extranjera, no subas "
+            "aquí conversaciones con datos sensibles."),
+        parse_fn=_parse_deepseek,
+    ),
+}
+
+# Confianza de una coincidencia por URL. El dominio es inequívoco; las huellas
+# de contenido no, así que puntúan más bajo y en proporción a cuántas aparecen.
+_CONFIANZA_URL = 0.95
+_CONFIANZA_HUELLA_MAX = 0.85
+# Una sola huella suelta no basta: "create_time" o "author" aparecen en
+# cualquier JSON. Hacen falta dos para que la respuesta valga algo.
+_HUELLAS_MINIMAS = 2
+
+
+def detect_platform(
+    url: Optional[str] = None, content_sample: Optional[str] = None
+) -> Tuple[Optional[str], float]:
+    """
+    Adivina de qué plataforma viene algo, por su URL o por su formato.
+
+    Devuelve (nombre, confianza), o (None, 0.0) cuando no lo sabe — y eso es
+    tan importante como acertar: un detector que siempre responde algo haría
+    pasar cualquier archivo por el parser equivocado, y el resultado parecería
+    un problema del contenido.
+    """
+    if url:
+        for nombre, cfg in PLATFORM_REGISTRY.items():
+            for patron in cfg.url_patterns:
+                if re.search(patron, url, re.IGNORECASE):
+                    return nombre, _CONFIANZA_URL
+
+    if content_sample:
+        muestra = content_sample[:20000].lower()
+        mejor_nombre: Optional[str] = None
+        mejor_aciertos = 0
+        for nombre, cfg in PLATFORM_REGISTRY.items():
+            aciertos = sum(
+                1 for huella in cfg.content_fingerprints
+                if huella.lower() in muestra)
+            if aciertos > mejor_aciertos:
+                mejor_nombre, mejor_aciertos = nombre, aciertos
+        if mejor_nombre and mejor_aciertos >= _HUELLAS_MINIMAS:
+            cfg = PLATFORM_REGISTRY[mejor_nombre]
+            proporcion = mejor_aciertos / len(cfg.content_fingerprints)
+            return mejor_nombre, round(_CONFIANZA_HUELLA_MAX * proporcion, 2)
+
+    return None, 0.0
+
+
+def parse_conversation(
+    content: Any,
+    platform: Optional[str] = None,
+    source_url: Optional[str] = None,
+) -> ParsedConversation:
+    """
+    Parsea una conversación con el lector de su plataforma.
+
+    `platform` declarado manda. Si no se declara, se detecta por la URL y por
+    el contenido. Si no se reconoce nada, se intenta el lector genérico de
+    markdown y la conversación queda marcada `unknown`: un transcript de origen
+    desconocido es un caso real y no hay por qué fingir que viene de algún sitio.
+
+    Lanza ValueError si se declara una plataforma que no existe. Devolver una
+    conversación vacía haría que un nombre mal escrito pareciera un archivo sin
+    mensajes, y son dos problemas distintos.
+    """
+    if platform:
+        cfg = PLATFORM_REGISTRY.get(platform.lower())
+        if cfg is None:
+            disponibles = ", ".join(sorted(PLATFORM_REGISTRY))
+            raise ValueError(
+                f"plataforma desconocida: {platform!r}. Disponibles: {disponibles}")
+        return cfg.parse_fn(content, source_url)
+
+    muestra = content if isinstance(content, str) else json.dumps(
+        content, ensure_ascii=False, default=str)
+    detectada, _ = detect_platform(url=source_url, content_sample=muestra)
+    if detectada:
+        return PLATFORM_REGISTRY[detectada].parse_fn(content, source_url)
+
+    return _parse_markdown_generic(muestra, "unknown", source_url)

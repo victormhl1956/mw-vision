@@ -227,3 +227,33 @@ def test_el_arranque_de_la_app_ejecuta_la_compuerta(monkeypatch):
     with TestClient(main.app):
         pass
     assert llamadas, "el arranque no llamó a la compuerta de confianza"
+
+
+def test_los_eventos_perdidos_son_visibles_en_la_api(tmp_path, monkeypatch):
+    """
+    El contrapeso del manejador estrecho de OSError en la ruta de escritura.
+    No propagar la excepción es correcto — esta clase instrumenta el handshake
+    del WebSocket y un disco lleno no debe tumbar el servicio — pero sólo si el
+    fallo se puede ver desde fuera. Si no, es un `except: pass` con buenos
+    modales.
+    """
+    from fastapi.testclient import TestClient
+    from src.security import audit_logger as mod
+    import main
+
+    logger = mod.AuditLogger(log_dir=str(tmp_path / "auditoria"))
+    monkeypatch.setattr(mod, "_audit_logger", logger)
+    antes = mod.AuditLogger.write_failures
+
+    # Un directorio que no se puede crear: el nombre lo ocupa un archivo.
+    bloqueado = tmp_path / "bloqueado"
+    bloqueado.write_text("no soy un directorio")
+    monkeypatch.setattr(logger, "log_dir", bloqueado / "dentro")
+    logger.log_event("prueba", "x", "escribir", "registro", "success")
+
+    assert mod.AuditLogger.write_failures == antes + 1, \
+        "el fallo de escritura no se contó"
+    with TestClient(main.app) as cliente:
+        cuerpo = cliente.get("/api/security").json()
+        assert cuerpo["audit_trail"]["write_failures"] >= 1
+        assert cuerpo["audit_trail"]["directory"]
