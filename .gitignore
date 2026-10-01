@@ -50,3 +50,5 @@ vite.config.ts.timestamp-*
 
 # TypeScript
 *.tsbuildinfo
+# Rastro de auditoría que escribe src/security/audit_logger.py en ejecución
+backend/logs/

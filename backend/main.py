@@ -145,6 +145,12 @@ class AgentModel(BaseModel):
     id: str
     name: str
     model: str
+    # Qué clase de datos maneja este agente. Declarado, no deducido: la política
+    # de confianza de Hydra sabe qué modelo vale para cada nivel, pero nadie
+    # puede adivinar el nivel leyendo el nombre del agente. SAFE por omisión
+    # porque es lo que esta tabla ya implica; poner "SENSITIVE" aquí activa la
+    # restricción de VULN-007 sobre ese agente en el arranque.
+    sensitivity: str = "SAFE"
     status: AgentStatus = AgentStatus.IDLE
     cost: float = 0.0
     tasks_completed: int = 0
@@ -320,6 +326,14 @@ async def simulate_agent_updates():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background simulation task."""
+    # La política de confianza de Hydra, aplicada antes de atender nada. El
+    # módulo que la codifica (src/hydra/trust_manager.py) existía desde
+    # feb-2026 y nadie lo importaba, así que VULN-007 y VULN-010 figuraban
+    # corregidas sin ejecutarse nunca. tests/test_security_wiring.py falla si
+    # se quita esta llamada.
+    from modules.agents.trust_gate import exigir_agentes_confiables
+    exigir_agentes_confiables(agents)
+
     task = asyncio.create_task(simulate_agent_updates())
     yield
     task.cancel()
