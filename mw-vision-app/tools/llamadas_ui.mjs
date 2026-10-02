@@ -14,7 +14,7 @@
 
 import { createRequire } from "node:module";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 
 // `import ts from "typescript"` sólo resuelve si el fichero vive dentro del
 // proyecto; createRequire lo resuelve desde aquí pase lo que pase, así que la
@@ -115,6 +115,34 @@ function contenedor(n) {
   return "(nivel de módulo)";
 }
 
+/**
+ * Si este fetch está dentro de una función cuyo parámetro aporta el camino,
+ * devuelve {nombreAyudante, parametro, plantilla} para resolverlo por sitio de
+ * llamada. Si no, null.
+ */
+function ayudanteConParametro(nodoFetch, objetivo, mapa) {
+  // La función que contiene el fetch, y su nombre.
+  let p = nodoFetch.parent;
+  let fn = null;
+  while (p) {
+    if (ts.isFunctionDeclaration(p) || ts.isArrowFunction(p) ||
+        ts.isFunctionExpression(p) || ts.isMethodDeclaration(p)) { fn = p; break; }
+    p = p.parent;
+  }
+  if (!fn) return null;
+  const nombre = contenedor(nodoFetch);
+  if (!nombre || nombre === "(nivel de módulo)") return null;
+
+  // Qué parámetro aparece sin resolver en el URL.
+  const parametros = fn.parameters
+    .filter((x) => ts.isIdentifier(x.name))
+    .map((x) => x.name.text);
+  const texto = objetivo.getText();
+  const usado = parametros.find((x) => texto.includes(x));
+  if (!usado) return null;
+  return { ayudante: nombre, parametro: usado, plantilla: objetivo, mapa };
+}
+
 // Normaliza un URL absoluto a su camino, para poder cruzarlo con el backend.
 function camino(url) {
   const m = /^[a-z]+:\/\/[^/]+(\/.*)?$/i.exec(url);
@@ -125,8 +153,90 @@ function camino(url) {
   return c.split("?")[0].replace(/\/+$/, "") || "/";
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Alcanzabilidad desde el punto de entrada
+//
+// Por qué. Este medidor contaba un `fetch` por existir en un fichero de src/, y
+// eso NO es «la interfaz lo pide». Lo descubrí desconectando la pestaña de la
+// memoria de App.tsx a propósito: el cruce siguió diciendo que la interfaz
+// pedía esas rutas, porque el servicio seguía ahí. Es exactamente la clase de
+// defecto de febrero —código que existe y nada ejecuta— cometida dentro de la
+// herramienta que lo busca.
+//
+// Así que primero se recorre el grafo de imports desde `main.tsx`, igual que
+// hace la batería en Python. Lo que no es alcanzable se cuenta aparte, como
+// capacidad sin consumidor, y no entra en «lo que la interfaz pide».
+// ───────────────────────────────────────────────────────────────────────────
+
+function resolverImport(desde, especificador) {
+  if (!especificador.startsWith(".")) return null;  // paquete, no fichero local
+  const base = join(dirname(desde), especificador);
+  const intentos = [base, base + ".ts", base + ".tsx",
+                    join(base, "index.ts"), join(base, "index.tsx")];
+  for (const p of intentos) {
+    try {
+      if (statSync(p).isFile()) return p;
+    } catch { /* no existe: siguiente */ }
+  }
+  return null;
+}
+
+function alcanzables(entrada) {
+  const vistos = new Set();
+  const pila = [entrada];
+  while (pila.length) {
+    const ruta = pila.pop();
+    if (vistos.has(ruta)) continue;
+    vistos.add(ruta);
+    let texto;
+    try {
+      texto = readFileSync(ruta, "utf8");
+    } catch { continue; }
+    const sf = ts.createSourceFile(ruta, texto, ts.ScriptTarget.Latest, true,
+      ruta.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const mirar = (n) => {
+      let espec = null;
+      if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+          n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
+        espec = n.moduleSpecifier.text;
+      } else if (ts.isCallExpression(n) &&
+                 n.expression.kind === ts.SyntaxKind.ImportKeyword &&
+                 n.arguments[0] && ts.isStringLiteral(n.arguments[0])) {
+        espec = n.arguments[0].text;  // import() dinámico
+      }
+      if (espec) {
+        const destino = resolverImport(ruta, espec);
+        if (destino) pila.push(destino);
+      }
+      ts.forEachChild(n, mirar);
+    };
+    ts.forEachChild(sf, mirar);
+  }
+  return vistos;
+}
+
+const ENTRADA = ["main.tsx", "main.ts", "index.tsx", "index.ts"]
+  .map((n) => join(raiz, n)).find((p) => { try { return statSync(p).isFile(); } catch { return false; } });
+const ALCANZABLES = ENTRADA ? alcanzables(ENTRADA) : null;
+
 const llamadas = [];
 const sinResolver = [];
+// Llamadas que existen en el árbol pero que no se alcanzan desde el punto de
+// entrada: capacidad escrita y sin consumidor.
+const sinConsumidor = [];
+
+// Un `fetch` dentro de un ayudante genérico —`pedir(camino)` que hace
+// `fetch(`${API_BASE}${camino}`)`— no deja ver a qué endpoint se llama: el
+// camino llega por parámetro. Mirar sólo el fetch convierte cinco rutas
+// distintas en un único «/api{param}», y entonces el cruce con el backend dice
+// que nadie pide esas rutas cuando sí las pide.
+//
+// Así que se resuelve un nivel: si el hueco sin resolver es un PARÁMETRO de la
+// función que contiene el fetch, se buscan las llamadas a esa función en el
+// mismo fichero y se emite una entrada por cada sitio de llamada, con su
+// argumento sustituido. Es lo mismo que el medidor de Python hace con los
+// ayudantes locales.
+const porResolverEnAyudante = [];
 
 for (const ruta of ficheros(raiz)) {
   const texto = readFileSync(ruta, "utf8");
@@ -165,19 +275,93 @@ for (const ruta of ficheros(raiz)) {
       const pareceCamino = url !== null &&
         (url.startsWith("/") || /^[a-z]+:\/\//i.test(url) ||
          url.startsWith("${"));
-      if (url === null || (exigirCamino && !pareceCamino)) {
+      // `{?}` = un hueco que no se pudo resolver DENTRO de un URL que sí se
+      // resolvió: `${API_BASE}${camino}` da «http://…/api{?}», que no es null
+      // y tampoco es un camino. Sin esta condición, el ayudante genérico nunca
+      // llegaba a resolverse por sitio de llamada y cinco rutas distintas se
+      // contaban como una sola inservible.
+      const conHueco = url !== null && url.includes("{?}");
+      if (url === null || conHueco || (exigirCamino && !pareceCamino)) {
         if (!exigirCamino) {
-          sinResolver.push({ fichero: rel, linea, clase,
-                             texto: objetivo.getText().slice(0, 120) });
+          const envoltorio = ayudanteConParametro(n, objetivo, mapa);
+          if (envoltorio) {
+            // Se guarda también el URL tal como se resolvió: si el ayudante no
+            // tiene sitios de llamada con camino literal, esto sigue siendo lo
+            // mejor que se sabe. `${API_BASE}/agents/${id}` es un PARÁMETRO DE
+            // RUTA —el backend declara /api/agents/{agent_id}— y descartarlo
+            // perdía dos rutas que antes se cruzaban bien.
+            porResolverEnAyudante.push({ fichero: rel, linea, clase, sf,
+                                         urlOriginal: url,
+                                         ...envoltorio });
+          } else {
+            sinResolver.push({ fichero: rel, linea, clase,
+                               texto: objetivo.getText().slice(0, 120) });
+          }
         }
       } else {
-        llamadas.push({ fichero: rel, linea, clase, url, camino: camino(url),
-                        donde: contenedor(n) });
+        const entrada = { fichero: rel, linea, clase, url, camino: camino(url),
+                          donde: contenedor(n) };
+        if (ALCANZABLES && !ALCANZABLES.has(ruta)) sinConsumidor.push(entrada);
+        else llamadas.push(entrada);
       }
     }
     ts.forEachChild(n, visitar);
   };
   ts.forEachChild(sf, visitar);
+}
+
+// ── Resolución de los ayudantes, por sitio de llamada ─────────────────────
+for (const pend of porResolverEnAyudante) {
+  const { sf, ayudante, parametro, plantilla, mapa, fichero, clase } = pend;
+  let encontrados = 0;
+  const visitar = (n) => {
+    if (ts.isCallExpression(n)) {
+      const f = n.expression;
+      const nombreLlamado = ts.isIdentifier(f) ? f.text
+        : ts.isPropertyAccessExpression(f) ? f.name.text : "";
+      if (nombreLlamado === ayudante && n.arguments.length) {
+        const valor = valorDeCadena(n.arguments[0], mapa);
+        if (valor !== null) {
+          // El camino final = la plantilla del fetch con el parámetro sustituido.
+          const mapaLocal = new Map(mapa);
+          mapaLocal.set(parametro, valor);
+          const url = valorDeCadena(plantilla, mapaLocal);
+          if (url !== null) {
+            encontrados += 1;
+            const entrada = {
+              fichero,
+              linea: sf.getLineAndCharacterOfPosition(n.getStart()).line + 1,
+              clase, url, camino: camino(url), donde: contenedor(n),
+              resuelto_por: `${ayudante}()`,
+            };
+            if (ALCANZABLES && !ALCANZABLES.has(sf.fileName)) {
+              sinConsumidor.push(entrada);
+            } else {
+              llamadas.push(entrada);
+            }
+          }
+        }
+      }
+    }
+    ts.forEachChild(n, visitar);
+  };
+  ts.forEachChild(sf, visitar);
+  if (encontrados === 0) {
+    if (pend.urlOriginal) {
+      const entrada = { fichero, linea: pend.linea, clase,
+                        url: pend.urlOriginal,
+                        camino: camino(pend.urlOriginal), donde: ayudante };
+      if (ALCANZABLES && !ALCANZABLES.has(sf.fileName)) {
+        sinConsumidor.push(entrada);
+      } else {
+        llamadas.push(entrada);
+      }
+    } else {
+      sinResolver.push({ fichero, linea: pend.linea, clase,
+                         texto: `${ayudante}(${parametro}) — ningún sitio de ` +
+                                `llamada con camino literal` });
+    }
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -281,7 +465,12 @@ for (const ruta of ficheros(raiz)) {
 }
 
 console.log(JSON.stringify({
-  raiz, llamadas, sin_resolver: sinResolver,
+  raiz,
+  entrada: ENTRADA ? relative(raiz, ENTRADA).split(sep).join("/") : null,
+  ficheros_alcanzables: ALCANZABLES ? ALCANZABLES.size : null,
+  llamadas,
+  llamadas_sin_consumidor: sinConsumidor,
+  sin_resolver: sinResolver,
   literales: literales.map((l) => ({ ...l,
     el_fichero_pide_datos: importaApi.get(l.fichero) === true })),
   simulaciones,

@@ -1,5 +1,6 @@
 """FastAPI router for Chat Processor endpoints."""
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -20,7 +21,18 @@ from .storage import (
 
 router = APIRouter(prefix="/api/chat", tags=["chat_processor"])
 
-_DB_PATH = Path(__file__).parent.parent.parent / "chat_processor.db"
+# La memoria del proyecto, y dónde vive. Era una constante de módulo, así que
+# la batería de tests escribía en ella: de las 26 conversaciones guardadas, 25
+# eran «Conversación de prueba» de mis propias ejecuciones. Una memoria
+# contaminada por los tests no es una memoria — nadie puede distinguir lo que se
+# decidió de lo que se comprobó.
+#
+# MW_CHAT_DB la mueve. Los tests apuntan a un fichero temporal; producción no
+# cambia de sitio.
+_DB_PATH = Path(
+    os.getenv("MW_CHAT_DB")
+    or Path(__file__).parent.parent.parent / "chat_processor.db"
+)
 init_db(_DB_PATH)
 
 

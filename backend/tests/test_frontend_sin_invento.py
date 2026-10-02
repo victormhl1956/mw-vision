@@ -197,3 +197,29 @@ def test_el_panel_de_seguridad_no_puede_declararse_sano_a_si_mismo():
             f"«{prohibido}» es una afirmación fija que nada en este código "
             f"sostiene; la de SOC 2 además tiene peso legal."
         )
+
+
+def test_el_medidor_del_frontend_recorre_el_grafo_de_imports():
+    """
+    Un `fetch` en un fichero que nadie importa no es «la interfaz lo pide».
+
+    El medidor contaba las llamadas por existir en src/, y ese error hacía pasar
+    el trinquete del cruce aunque se desconectara la pestaña de App.tsx. Esto
+    fija que el recorrido existe: que encontró el punto de entrada y que el
+    conjunto alcanzable es más pequeño que el árbol.
+    """
+    d = _medir()
+    assert d.get("entrada"), (
+        "el medidor no encontró el punto de entrada del frontend, así que no "
+        "puede distinguir una llamada viva de una muerta")
+    alcanzables = d.get("ficheros_alcanzables")
+    assert isinstance(alcanzables, int) and alcanzables > 0, d.get("entrada")
+    # Y la prueba de que el recorrido DISCRIMINA: hoy hay al menos una llamada
+    # sin consumidor (hooks/useWebSocket.ts no lo importa nadie). Si algún día
+    # no queda ninguna, este test lo dirá y se borra la lista.
+    assert "llamadas_sin_consumidor" in d, (
+        "el medidor ya no separa las llamadas sin consumidor")
+    assert d["llamadas_sin_consumidor"], (
+        "ninguna llamada sin consumidor: o se limpió el código muerto "
+        "(celébralo y borra esta comprobación) o el recorrido dejó de "
+        "discriminar, que es peor")
