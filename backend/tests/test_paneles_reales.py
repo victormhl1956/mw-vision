@@ -16,6 +16,7 @@ La lista de excepciones es explícita y pequeña a propósito. Añadir una cuest
 una línea y queda escrita con su motivo; lo que no puede pasar es que un panel
 de estado sea una constante y nadie lo note.
 """
+import json
 import os
 import subprocess
 import sys
@@ -30,10 +31,10 @@ MEDIDOR = os.path.join(BACKEND, "tools", "origen_datos.py")
 CONSTANTES_LEGITIMAS = {
     "/": "endpoint de información: nombre y versión del servicio",
     "/api": "índice de la API; su contenido ES la lista de rutas",
-    "/platforms": "PLATFORM_REGISTRY es configuración —las plataformas "
-                  "soportadas— no estado del sistema",
-    "/detect-platform": "calcula desde lo que le mandan, y consulta la misma "
-                        "configuración de plataformas",
+    "/api/chat/platforms": "PLATFORM_REGISTRY es configuración —las plataformas "
+                           "soportadas— no estado del sistema",
+    "/api/chat/detect-platform": "calcula desde lo que le mandan, y consulta la "
+                                 "misma configuración de plataformas",
 }
 
 # Rutas que hoy sirven dato inventado y que el equipo acepta mientras se
@@ -45,20 +46,28 @@ DEUDA_ACEPTADA = {
     # constante se ve y un simulador produce números que derivan de forma
     # plausible. crew_state.total_cost, además, se compara contra budget_limit
     # para parar la tripulación: una guarda de presupuesto movida por un dado.
-    "/agents": "SIMULADO: crew_state lo escribe modules/crew/simulator.py",
-    "/crew": "SIMULADO: crew_state lo escribe modules/crew/simulator.py",
     "/health": "SIMULADO: el health incluye crew_state, que escribe el "
                "simulador; lo de «estoy vivo» sí es real",
-    "/api/crew": "SIMULADO: crew_state lo escribe la copia del simulador que "
-                 "vive en main.py",
+    "/api/crew": "SIMULADO: crew_state lo escribe el simulador, en los dos "
+                 "puntos de entrada",
     "/api/routing-history": "SIMULADO: el historial de enrutado de src/main.py",
+    "/api/agents/{agent_id}/execute": "SIMULADO: el handler hace "
+                                      "random.randint(1, 10) para «simular el "
+                                      "enrutado del Coordinador Estratégico»",
     # Las SEMILLA: estado en memoria que nadie escribe nunca.
     "/api/agents": "semilla de tres agentes escritos a mano en src/main.py, y "
-                   "simulado en main.py; modules/agents/state.py es OTRA "
-                   "semilla de los mismos tres — no hay registro real",
+                   "simulado en main.py y routers/agents.py; "
+                   "modules/agents/state.py es OTRA semilla de los mismos tres "
+                   "— no hay registro real de agentes en ningún sitio",
     "/api/agents/{agent_id}": "la misma semilla de tres agentes",
     "/api/stats": "estadísticas calculadas sobre esa misma semilla",
 }
+
+# Un NO SÉ no es un fallo —el medidor no sabe, y eso es honrado— pero tampoco
+# puede ser un sitio donde esconderse: una ruta que el medidor no entiende pasa
+# la comprobación en silencio. El trinquete permite las que hay y prohíbe que
+# crezcan. Bajarlo cuando se resuelva una es parte del trabajo.
+MAXIMO_SIN_CLASIFICAR = 2
 
 
 def _ejecutar(permitidas):
@@ -102,6 +111,25 @@ def test_la_comprobacion_puede_fallar():
             f"señala: o se arregló (bórrala de DEUDA_ACEPTADA) o el medidor "
             f"dejó de verla, que es peor."
         )
+
+
+def test_las_rutas_sin_clasificar_no_se_multiplican():
+    """
+    El trinquete. Si el medidor deja de entender una ruta más, esto falla: o se
+    resuelve, o se baja el número a conciencia. Lo que no puede pasar es que la
+    forma de aprobar la comprobación sea escribir código que el medidor no sepa
+    leer.
+    """
+    orden = [sys.executable, MEDIDOR, BACKEND, "--json"]
+    datos = json.loads(subprocess.run(orden, capture_output=True,
+                                      text=True).stdout)
+    sin_clasificar = [r for r in datos["rutas"] if r["origen"] == "NO SÉ"]
+    assert len(sin_clasificar) <= MAXIMO_SIN_CLASIFICAR, (
+        f"{len(sin_clasificar)} rutas sin clasificar, el máximo es "
+        f"{MAXIMO_SIN_CLASIFICAR}:\n" +
+        "\n".join(f"  {r['metodo']} {r['camino']} ({r['fichero']}:"
+                   f"{r['linea']}) — {r['porque']}" for r in sin_clasificar)
+    )
 
 
 @pytest.mark.parametrize("camino,motivo", sorted(CONSTANTES_LEGITIMAS.items()))

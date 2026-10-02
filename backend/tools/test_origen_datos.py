@@ -120,6 +120,67 @@ def needs():
     return []
 ''', {"/api/needs": "CONSTANTE"}),
 
+    # ── un .get() no es una petición, y un handler que tira el dado simula ─
+    # Los dos defectos que escondían el único POST que la interfaz llamaba:
+    # `task.get("x")` contaba como petición HTTP, y el handler hacía
+    # `random.randint(1, 10)` para «simular el enrutado».
+    "dado_y_dict.py": ('''
+import random
+from fastapi import FastAPI
+app = FastAPI()
+
+@app.post("/api/ejecutar")
+def ejecutar(tarea: dict):
+    complejidad = random.randint(1, 10)
+    return {"consulta": tarea.get("tarea", "manual"), "complejidad": complejidad}
+
+@app.get("/api/solo-dict")
+def solo_dict():
+    opciones = {"a": 1}
+    return {"valor": opciones.get("a", 0)}
+''', {"/api/ejecutar": "SIMULADO", "/api/solo-dict": "CONSTANTE"}),
+
+    "cliente_si_cuenta.py": ('''
+import httpx
+from fastapi import FastAPI
+app = FastAPI()
+
+cliente = httpx.Client()
+
+@app.get("/api/remoto")
+def remoto():
+    return cliente.get("http://localhost:8477/v1/costos").json()
+''', {"/api/remoto": "CONSULTA"}),
+
+    # ── el prefijo del APIRouter forma parte del camino ────────────────────
+    # routers/agents.py declara «/agents» y atiende «/api/agents». Sin el
+    # prefijo, el cruce con la interfaz no encontraba la ruta que de verdad
+    # sirve cada panel, y cinco ficheros del árbol llevan prefijo.
+    "con_prefijo.py": ('''
+import sqlite3
+from fastapi import APIRouter
+router = APIRouter(prefix="/api")
+
+@router.get("/agentes")
+def agentes():
+    return sqlite3.connect("x.db").execute("SELECT 1").fetchall()
+
+@router.get("/")
+def raiz():
+    return {"ok": True}
+''', {"/api/agentes": "CONSULTA", "/api": "CONSTANTE"}),
+
+    "prefijo_profundo.py": ('''
+from fastapi import APIRouter
+router = APIRouter(prefix="/api/chat/", tags=["x"])
+
+LISTA = [{"a": 1}]
+
+@router.get("/platforms")
+def plataformas():
+    return LISTA
+''', {"/api/chat/platforms": "MEMORIA SEMILLA"}),
+
     # ── leer configuración NO es consultar un dato ─────────────────────────
     # Añadir una etiqueta honesta («¿esto es simulado?») hizo que cuatro rutas
     # pasaran a CONSULTA sólo por llamar a os.getenv, y la puerta subió 13
@@ -308,10 +369,11 @@ def test_el_medidor_acierta_en_los_casos_conocidos():
     """
     La herramienta que mide si los paneles son reales tiene que acertar en
     casos donde la respuesta se sabe. Un medidor equivocado manda el programa
-    por el camino que no es: su primera versión decía «100% verdadero» porque
-    contaba el propio decorador @router.get como una consulta.
+    por el camino que no es: su primera version decia «100% verdadero» porque
+    contaba el propio decorador @router.get como una consulta, y daba por real
+    el unico POST que la interfaz llama porque `task.get(...)` parecia HTTP.
     """
-    assert main() == 0, "el medidor falló en sus propios casos conocidos"
+    assert main() == 0, "el medidor fallo en sus propios casos conocidos"
 
 
 if __name__ == "__main__":

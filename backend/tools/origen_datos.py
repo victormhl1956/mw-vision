@@ -85,6 +85,16 @@ VERBOS = {"get", "post", "put", "patch", "delete", "websocket", "head",
 
 # Llegar a una fuente de verdad. No vale con importar la librería: hay que
 # usarla en el camino del handler.
+# Métodos cuyo nombre es ambiguo: `get` y `post` son peticiones HTTP sólo si el
+# receptor es un cliente. `task.get("x")` es un diccionario. Sin esta
+# distinción, cualquier handler que lea un campo de su petición parecía
+# consultar una fuente de verdad.
+AMBIGUOS = {"get", "post", "put", "request", "query", "select", "update",
+            "pop", "add"}
+RECEPTOR_CLIENTE = re.compile(
+    r"(client|session|http|httpx|requests|aiohttp|api|conn|cx|cursor|db|"
+    r"engine|pool|redis|urllib|socket)", re.I)
+
 SENALES_CONSULTA = {
     # bases de datos
     "execute", "executemany", "fetchone", "fetchall", "fetchmany", "cursor",
@@ -174,7 +184,41 @@ def es_prueba(rel: str) -> bool:
 # Clasificación
 # ─────────────────────────────────────────────────────────────────────────────
 
-def decoradores_de_ruta(fn: ast.FunctionDef | ast.AsyncFunctionDef
+def prefijos_de_router(arbol: ast.Module) -> dict[str, str]:
+    """
+    El prefijo de cada APIRouter del módulo: nombre -> "/api".
+
+    FastAPI lo antepone a cada ruta del router, así que sin esto el camino que
+    se mide no es el camino que sirve. En este árbol afecta a cinco ficheros:
+    routers/agents.py declara «/agents» y atiende «/api/agents».
+
+    Lo que esto NO cubre: un prefijo añadido al incluir el router
+    (`include_router(r, prefix=...)`). Si aparece, el camino medido se quedará
+    corto, y el cruce panel-a-panel lo delatará como «SIN RUTA».
+    """
+    salida: dict[str, str] = {}
+    for n in arbol.body:
+        if not isinstance(n, (ast.Assign, ast.AnnAssign)):
+            continue
+        valor = n.value
+        if not (isinstance(valor, ast.Call)
+                and isinstance(valor.func, ast.Name)
+                and valor.func.id == "APIRouter"):
+            continue
+        prefijo = ""
+        for k in valor.keywords:
+            if k.arg == "prefix" and isinstance(k.value, ast.Constant) \
+                    and isinstance(k.value.value, str):
+                prefijo = k.value.value.rstrip("/")
+        objetivos = n.targets if isinstance(n, ast.Assign) else [n.target]
+        for t in objetivos:
+            if isinstance(t, ast.Name):
+                salida[t.id] = prefijo
+    return salida
+
+
+def decoradores_de_ruta(fn: ast.FunctionDef | ast.AsyncFunctionDef,
+                        prefijos: dict[str, str] | None = None
                         ) -> list[tuple[str, str]]:
     """[(verbo, camino)] de los decoradores que declaran una ruta HTTP/WS."""
     salida = []
@@ -192,6 +236,10 @@ def decoradores_de_ruta(fn: ast.FunctionDef | ast.AsyncFunctionDef
         if llamada and llamada.args and isinstance(llamada.args[0], ast.Constant) \
                 and isinstance(llamada.args[0].value, str):
             camino = llamada.args[0].value
+        if camino:
+            prefijo = (prefijos or {}).get(nombre or "", "")
+            if prefijo:
+                camino = prefijo + ("" if camino == "/" else camino)
         salida.append((func.attr.lower(), camino or "(sin camino literal)"))
     return salida
 
@@ -224,6 +272,10 @@ class Rastro(ast.NodeVisitor):
                 # declaración. Sin esto, cualquier @router.get contaba como
                 # «llega a una fuente de verdad».
                 if f.attr in NUNCA_CONSULTA:
+                    pass
+                elif f.attr in AMBIGUOS and not RECEPTOR_CLIENTE.search(base or ""):
+                    # Un .get() sobre algo que no parece un cliente es un
+                    # diccionario, no una petición.
                     pass
                 elif not (f.attr.lower() in VERBOS and DECOR_RUTA.match(base or "")):
                     self.consulta.append(
@@ -324,6 +376,18 @@ class Rastro(ast.NodeVisitor):
             return
         raiz = _nombre_raiz(v)
         if raiz:
+            # `opciones.get("a", 0)` donde opciones es un literal local: el
+            # resultado es tan literal como el literal. Sin esto, cualquier
+            # acceso a un diccionario local salía como raíz sin resolver.
+            if raiz in self.locales_literales:
+                self.partes_literales += 1
+                return
+            origen = self.locales_asignadas.get(raiz)
+            if origen is not None and raiz not in self._siguiendo:
+                self._siguiendo.add(raiz)
+                self._mirar_devuelto(origen, profundidad + 1)
+                self._siguiendo.discard(raiz)
+                return
             self.raices_devueltas.add(raiz)
         else:
             self.raices_devueltas.add("(no resuelto)")
@@ -403,6 +467,15 @@ def clasificar(fn, fuente: str, locales: dict, estado: "EstadoModulo",
                mod=None, modulos: dict | None = None
                ) -> tuple[str, str, list[str]]:
     r = mirar_cuerpo(fn, fuente, locales, set())
+
+    # El propio handler inventa números: eso manda sobre cualquier consulta que
+    # también haga. El único POST que la interfaz llamaba salía CONSULTA y
+    # dentro hacía `complexity = random.randint(1, 10)` para «simular el
+    # enrutado del Coordinador Estratégico».
+    if _funcion_simula(fn):
+        return (SIMULADO,
+                f"{fn.name}() genera sus propios números con random",
+                r.maqueta)
 
     if r.consulta:
         # Toca una fuente de verdad. Si además huele a maqueta se dice, pero no
@@ -650,6 +723,8 @@ class Modulo:
     # salir del fichero: la mitad de los paneles devuelven algo importado, y
     # mirar sólo el módulo actual deja un tercio del árbol en NO SÉ.
     importado: dict
+    # nombre del router -> su prefijo, que forma parte del camino servido.
+    prefijos: dict = field(default_factory=dict)
 
 
 def _punteado(raiz: str, ruta: str) -> str:
@@ -703,6 +778,7 @@ def indexar(raiz: str, incluir_pruebas: bool) -> tuple[dict, list[str]]:
             funciones={n.name: n for n in ast.walk(arbol)
                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))},
             importado=_importaciones(arbol, punteado),
+            prefijos=prefijos_de_router(arbol),
         )
         modulos[punteado].ruta = os.path.relpath(ruta, raiz).replace("\\", "/")
 
@@ -867,7 +943,7 @@ def medir(raiz: str, incluir_pruebas: bool) -> tuple[list[Ruta], list[str]]:
         for n in ast.walk(mod.arbol):
             if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            for verbo, camino in decoradores_de_ruta(n):
+            for verbo, camino in decoradores_de_ruta(n, mod.prefijos):
                 origen, porque, pistas = clasificar(
                     n, mod.fuente, mod.funciones, mod.estado, mod, modulos)
                 rutas.append(Ruta(mod.ruta, n.lineno, verbo.upper(), camino,

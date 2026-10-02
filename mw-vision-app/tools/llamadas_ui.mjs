@@ -1,0 +1,183 @@
+// Qué endpoints pide la interfaz, leídos del árbol sintáctico de TypeScript.
+//
+// Por qué con el compilador y no con grep. Un grep de `fetch(` encuentra las
+// llamadas pero no resuelve `${API_BASE}/agents` a `/api/agents`, no distingue
+// una llamada real de una comentada o de una que vive dentro de una cadena, y
+// no dice en qué componente está. El dato que hace falta es el camino final,
+// porque es lo que se cruza con la medición del backend: una interfaz
+// perfectamente cableada contra un endpoint que devuelve una semilla sigue
+// siendo un panel falso, y eso sólo se ve uniendo los dos lados.
+//
+// Sale por stdout en JSON. No juzga nada: sólo dice qué pide quién.
+//
+// Uso: node llamadas_ui.mjs <raiz-del-frontend>
+
+import { createRequire } from "node:module";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+
+// `import ts from "typescript"` sólo resuelve si el fichero vive dentro del
+// proyecto; createRequire lo resuelve desde aquí pase lo que pase, así que la
+// herramienta funciona igual ejecutada desde cualquier directorio.
+const require = createRequire(import.meta.url);
+const ts = require("typescript");
+
+const raiz = process.argv[2];
+if (!raiz) {
+  console.error("uso: node llamadas_ui.mjs <raiz-del-frontend>");
+  process.exit(3);
+}
+
+const OMITIR = new Set(["node_modules", "dist", "build", ".git", "coverage"]);
+
+function ficheros(dir, acc = []) {
+  for (const nombre of readdirSync(dir)) {
+    if (OMITIR.has(nombre)) continue;
+    const ruta = join(dir, nombre);
+    const s = statSync(ruta);
+    if (s.isDirectory()) ficheros(ruta, acc);
+    else if (/\.(ts|tsx)$/.test(nombre) && !nombre.endsWith(".d.ts")) acc.push(ruta);
+  }
+  return acc;
+}
+
+// Constantes de módulo que son cadenas, para poder resolver `${API_BASE}/x`.
+function constantesDeCadena(sf) {
+  const mapa = new Map();
+  const visitar = (n) => {
+    if (ts.isVariableStatement(n)) {
+      for (const d of n.declarationList.declarations) {
+        if (!ts.isIdentifier(d.name) || !d.initializer) continue;
+        const v = valorDeCadena(d.initializer, mapa);
+        if (v !== null) mapa.set(d.name.text, v);
+      }
+    }
+    ts.forEachChild(n, visitar);
+  };
+  ts.forEachChild(sf, visitar);
+  return mapa;
+}
+
+// El valor de una expresión como cadena, o null si no se puede saber.
+// Resuelve literales, plantillas, `a ?? b` (se queda con el respaldo, que es
+// el valor por defecto que corre cuando no hay variable de entorno) y los
+// identificadores que ya estén en el mapa.
+function valorDeCadena(n, mapa) {
+  if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) return n.text;
+  if (ts.isTemplateExpression(n)) {
+    let salida = n.head.text;
+    for (const span of n.templateSpans) {
+      const trozo = valorDeCadena(span.expression, mapa);
+      // Un hueco que no se puede resolver se marca, no se borra: mejor
+      // «/api/agents/{?}» que un camino inventado.
+      salida += trozo === null ? "{?}" : trozo;
+      salida += span.literal.text;
+    }
+    return salida;
+  }
+  if (ts.isIdentifier(n)) return mapa.has(n.text) ? mapa.get(n.text) : null;
+  if (ts.isBinaryExpression(n) &&
+      (n.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+       n.operatorToken.kind === ts.SyntaxKind.BarBarToken)) {
+    // import.meta.env.X ?? 'http://localhost:8000/api' -> el respaldo.
+    const der = valorDeCadena(n.right, mapa);
+    if (der !== null) return der;
+    return valorDeCadena(n.left, mapa);
+  }
+  if (ts.isParenthesizedExpression(n)) return valorDeCadena(n.expression, mapa);
+  if (ts.isAsExpression(n) || ts.isTypeAssertionExpression?.(n)) {
+    return valorDeCadena(n.expression, mapa);
+  }
+  if (ts.isCallExpression(n)) {
+    // wsUrl('/ws') y parecidas: el argumento de cadena es el camino.
+    for (const a of n.arguments) {
+      const v = valorDeCadena(a, mapa);
+      if (v !== null) return v;
+    }
+  }
+  return null;
+}
+
+// El nombre de la función o componente que contiene al nodo.
+function contenedor(n) {
+  let p = n.parent;
+  while (p) {
+    if ((ts.isFunctionDeclaration(p) || ts.isMethodDeclaration(p)) && p.name) {
+      return p.name.getText();
+    }
+    if ((ts.isArrowFunction(p) || ts.isFunctionExpression(p))) {
+      const d = p.parent;
+      if (ts.isVariableDeclaration(d) && ts.isIdentifier(d.name)) return d.name.text;
+      if (ts.isPropertyAssignment(d) && d.name) return d.name.getText();
+    }
+    p = p.parent;
+  }
+  return "(nivel de módulo)";
+}
+
+// Normaliza un URL absoluto a su camino, para poder cruzarlo con el backend.
+function camino(url) {
+  const m = /^[a-z]+:\/\/[^/]+(\/.*)?$/i.exec(url);
+  let c = m ? (m[1] ?? "/") : url;
+  if (!c.startsWith("/")) c = "/" + c;
+  // Los parámetros de ruta se normalizan al estilo de FastAPI.
+  c = c.replace(/\{\?\}/g, "{param}");
+  return c.split("?")[0].replace(/\/+$/, "") || "/";
+}
+
+const llamadas = [];
+const sinResolver = [];
+
+for (const ruta of ficheros(raiz)) {
+  const texto = readFileSync(ruta, "utf8");
+  const sf = ts.createSourceFile(ruta, texto, ts.ScriptTarget.Latest, true,
+    ruta.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const mapa = constantesDeCadena(sf);
+  const rel = relative(raiz, ruta).split(sep).join("/");
+
+  const visitar = (n) => {
+    let clase = null;
+    let objetivo = null;
+    let exigirCamino = false;
+
+    if (ts.isCallExpression(n)) {
+      const f = n.expression.getText();
+      // `fetch` y axios son inequívocos. Un `.get(...)` cualquiera NO lo es:
+      // `mapa.get(node.id)` no es una petición, y contarlo metía ruido en la
+      // lista de endpoints. Para esos se exige que el receptor parezca un
+      // cliente HTTP, y aun así el camino tiene que parecer un camino.
+      const inequivoco = f === "fetch" || /^axios(\.\w+)?$/.test(f);
+      const quizas = /\.(get|post|put|patch|delete)$/.test(f) &&
+        /(axios|api|client|http|request|rest)/i.test(f);
+      if (inequivoco || quizas) {
+        clase = "http";
+        objetivo = n.arguments[0];
+        if (quizas) exigirCamino = true;
+      }
+    } else if (ts.isNewExpression(n) && n.expression.getText() === "WebSocket") {
+      clase = "websocket";
+      objetivo = n.arguments?.[0];
+    }
+
+    if (clase && objetivo) {
+      const url = valorDeCadena(objetivo, mapa);
+      const linea = sf.getLineAndCharacterOfPosition(n.getStart()).line + 1;
+      const pareceCamino = url !== null &&
+        (url.startsWith("/") || /^[a-z]+:\/\//i.test(url) ||
+         url.startsWith("${"));
+      if (url === null || (exigirCamino && !pareceCamino)) {
+        if (!exigirCamino) {
+          sinResolver.push({ fichero: rel, linea, clase,
+                             texto: objetivo.getText().slice(0, 120) });
+        }
+      } else {
+        llamadas.push({ fichero: rel, linea, clase, url, camino: camino(url),
+                        donde: contenedor(n) });
+      }
+    }
+    ts.forEachChild(n, visitar);
+  };
+  ts.forEachChild(sf, visitar);
+}
+
+console.log(JSON.stringify({ raiz, llamadas, sin_resolver: sinResolver }, null, 2));
