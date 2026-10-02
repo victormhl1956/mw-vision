@@ -128,6 +128,72 @@ def test_secreto_ausente_falla_al_arrancar(monkeypatch):
         wa.WebSocketAuthenticator()
 
 
+@pytest.mark.parametrize("clave,porque", [
+    ("corta", "cinco caracteres se recuperan de un solo token"),
+    ("a" * 31, "un carácter por debajo del mínimo sigue siendo débil"),
+    ("changeme", "aparece en todos los tutoriales"),
+    ("CHANGE_ME", "la misma, con otra tipografía"),
+    ("secret-key", "la misma, con guión"),
+    ("abababababababababababababababababab", "larga, pero con dos símbolos"),
+    ("abcabcabcabcabcabcabcabcabcabcabcabc", "larga, pero un motivo repetido"),
+    ("mw-vision", "el nombre del propio proyecto"),
+])
+def test_secreto_debil_falla_al_arrancar(monkeypatch, clave, porque):
+    """Una clave larga no es una clave fuerte, y tampoco se degrada en silencio.
+
+    Exigir que HYDRA_SECRET_KEY exista no basta: `secret` existe. Con una clave
+    adivinable, cualquiera firma un token válido y entra por /ws con permiso del
+    propio HMAC, que es peor que no tener autenticación, porque el registro de
+    auditoría dirá que la conexión venía firmada.
+    """
+    import src.security.websocket_auth as wa
+
+    monkeypatch.delenv("HYDRA_ALLOW_WEAK_KEY", raising=False)
+    with pytest.raises(RuntimeError) as e:
+        wa.WebSocketAuthenticator(clave)
+    assert "HYDRA_SECRET_KEY" in str(e.value), (
+        f"Aceptó una clave débil ({porque}) o falló por otro motivo: {e.value}"
+    )
+
+
+@pytest.mark.parametrize("clave", [
+    "clave-de-prueba-estable-para-los-tests",
+    "f3a9c1d8e7b64a2093f5c8e1d4b7a0f2",          # 32 hex
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+])
+def test_secreto_fuerte_si_arranca(monkeypatch, clave):
+    """El contrapeso: rechazar todas las claves también pasaría el test de arriba.
+
+    Sin esto, un validador que diga «no» a cualquier cosa aprobaría la batería y
+    dejaría el backend sin arrancar nunca.
+    """
+    import src.security.websocket_auth as wa
+
+    monkeypatch.delenv("HYDRA_ALLOW_WEAK_KEY", raising=False)
+    a = wa.WebSocketAuthenticator(clave)
+    assert a.verify_token(a.generate_token()), (
+        "Una clave legítima no pudo firmar y verificar su propio token."
+    )
+
+
+def test_escape_de_clave_debil_es_explicito(monkeypatch):
+    """La salida de emergencia existe, pero tiene que haber que pedirla.
+
+    Un desarrollador reproduciendo un informe necesita poder usar una clave de
+    juguete; lo que no puede pasar es que ese camino sea el que se toma por
+    descuido en producción.
+    """
+    import src.security.websocket_auth as wa
+
+    monkeypatch.setenv("HYDRA_ALLOW_WEAK_KEY", "1")
+    assert wa.WebSocketAuthenticator("changeme") is not None
+    # Cualquier otro valor NO abre la puerta: 'true', 'yes' o '0' no valen.
+    for valor in ("true", "yes", "0", "", "si"):
+        monkeypatch.setenv("HYDRA_ALLOW_WEAK_KEY", valor)
+        with pytest.raises(RuntimeError):
+            wa.WebSocketAuthenticator("changeme")
+
+
 def test_revoke_token_no_finge_exito():
     """Una revocación que no revoca no puede devolver éxito en silencio.
 

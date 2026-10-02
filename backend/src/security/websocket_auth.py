@@ -32,7 +32,65 @@ class WebSocketAuthenticator:
                 "Generate one with: python -c \"import secrets; "
                 "print(secrets.token_hex(32))\""
             )
+        self._reject_weak_key(raw)
         self._secret = raw.encode()
+
+    # Minimum entropy for an HMAC-SHA256 signing key. 32 bytes is what
+    # secrets.token_hex(32) produces as 64 hex characters; accepting less is
+    # accepting a key that can be guessed offline, and the error that follows
+    # looks like a bug rather than a break-in.
+    _MIN_KEY_CHARS = 32
+
+    # Keys that appear in tutorials, .env.example files and commit history.
+    # Requiring length alone is not enough: "secret-secret-secret-secret-secret"
+    # is 34 characters and public knowledge.
+    _PLACEHOLDERS = frozenset({
+        "changeme", "change_me", "change-me", "secret", "secretkey",
+        "secret_key", "mysecret", "my_secret", "password", "default",
+        "placeholder", "todo", "fixme", "example", "test", "testing",
+        "dev", "development", "local", "localhost", "hydra", "mwvision",
+        "mw_vision", "mw-vision", "0", "1", "none", "null", "xxx",
+    })
+
+    @classmethod
+    def _reject_weak_key(cls, raw: str) -> None:
+        """
+        Refuse a signing key that is too short or publicly known.
+
+        Set HYDRA_ALLOW_WEAK_KEY=1 to override, which exists so a developer can
+        reproduce a report without editing this file; it is deliberately
+        awkward and must never be set in production.
+        """
+        if os.getenv("HYDRA_ALLOW_WEAK_KEY") == "1":
+            return
+        clave = raw.strip()
+        if len(clave) < cls._MIN_KEY_CHARS:
+            raise RuntimeError(
+                f"HYDRA_SECRET_KEY is {len(clave)} characters; at least "
+                f"{cls._MIN_KEY_CHARS} are required to sign HMAC-SHA256 tokens. "
+                "A short key can be recovered offline from a single token. "
+                "Generate one with: python -c \"import secrets; "
+                "print(secrets.token_hex(32))\""
+            )
+        # Compare on the alphanumeric core so "secret", "SECRET_KEY" and
+        # placeholder punctuation all collapse to the same word.
+        nucleo = "".join(c for c in clave.lower() if c.isalnum())
+        if nucleo in cls._PLACEHOLDERS or len(set(nucleo)) <= 2:
+            raise RuntimeError(
+                "HYDRA_SECRET_KEY is a placeholder or has almost no variety. "
+                "Any token signed with it can be forged by anyone who has read "
+                "a tutorial. Generate one with: python -c \"import secrets; "
+                "print(secrets.token_hex(32))\""
+            )
+        # A key repeated from a short motif ("abcabcabc...") is long but weak.
+        for n in range(1, 9):
+            if len(nucleo) > n and nucleo == (nucleo[:n] * (len(nucleo) // n + 1))[:len(nucleo)]:
+                raise RuntimeError(
+                    "HYDRA_SECRET_KEY is a short pattern repeated to reach the "
+                    "required length, so it has the entropy of the pattern. "
+                    "Generate one with: python -c \"import secrets; "
+                    "print(secrets.token_hex(32))\""
+                )
 
     # ------------------------------------------------------------------
     # Public API
