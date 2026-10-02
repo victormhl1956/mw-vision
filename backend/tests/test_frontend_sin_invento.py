@@ -36,21 +36,22 @@ HERRAMIENTA = os.path.join(FRONTEND, "tools", "llamadas_ui.mjs")
 
 # Deuda declarada, con su motivo. Borrar una línea es la forma de exigir que se
 # arregle; añadir una debería costar una conversación.
-SIMULACIONES_CONOCIDAS = {
-    # SecurityDashboard.tsx salió de esta lista el 2026-10-02: ahora lee
-    # /api/security y su botón vuelve a medir en vez de sumar Math.random().
-    "views/FlowView.tsx":
-        "handleLaunch() reparte Math.random() * 2 como coste de cada agente; "
-        "es un simulador independiente del backend, así que MW_SIMULADOR=off "
-        "no lo apaga",
-}
+# Vacío, y así tiene que quedarse. El 2026-10-02 había dos: SecurityDashboard,
+# que ahora lee /api/security, y FlowView, que repartía Math.random() * 2 como
+# coste de cada agente dos segundos después de lanzar la tripulación —un
+# simulador independiente del backend, así que apagar MW_SIMULADOR no lo
+# apagaba—. Volver a añadir una línea aquí es volver a inventar cifras en el
+# navegador, y debería costar una conversación.
+SIMULACIONES_CONOCIDAS: dict[str, str] = {}
 
 LITERALES_CONOCIDOS = {
     # SecurityDashboard.tsx salió de esta lista el 2026-10-02: sus ocho
     # comprobaciones fijas en 'pass' y la puntuación de 92 ya no existen.
     "views/BlueprintView.tsx":
-        "initialMockFiles, y handleGitHubImport() que devuelve cuatro ficheros "
-        "inventados tras un setTimeout de 3 s y anuncia «Imported 4 files»",
+        "FICHEROS_DE_EJEMPLO se queda porque la vista no tiene de dónde sacar "
+        "ficheros todavía, pero la interfaz lo dice con un aviso visible "
+        "arriba; los dos éxitos falsos —importar de GitHub y aplicar Hydra "
+        "Protocol— ya no fingen",
 }
 
 
@@ -91,6 +92,42 @@ def test_ningun_panel_nuevo_pinta_datos_escritos_a_mano():
     assert not nuevos, (
         "Componentes o vistas con listas de datos escritas dentro y no "
         "declaradas:\n" + "\n".join(f"  {f}" for f in nuevos)
+    )
+
+
+def test_la_vista_de_ejemplo_avisa_de_que_lo_es():
+    """
+    Un dato de muestra sin etiqueta se lee como un inventario real. Esta vista
+    conserva su lista de ejemplo, así que el aviso es la condición para
+    conservarla: si alguien lo borra, el literal deja de ser deuda declarada y
+    vuelve a ser un panel falso.
+    """
+    ruta = os.path.join(FRONTEND, "src", "views", "BlueprintView.tsx")
+    texto = open(ruta, encoding="utf-8").read()
+    sin_comentarios = _sin_comentarios(texto)
+    assert "no está conectada" in sin_comentarios, (
+        "BlueprintView conserva una lista de ficheros de ejemplo y ya no avisa "
+        "de que lo es.")
+    # El invariante, más preciso que buscar las palabras: una vista que no hace
+    # nada no puede emitir un aviso de éxito. Buscar «Protected » casaba con el
+    # identificador `hydraProtected`, que es un falso positivo de los que gastan
+    # el tiempo de quien lee el fallo.
+    # Con regex y no con subcadena: el código escribe `showToast(` y `'success'`
+    # en LÍNEAS DISTINTAS, así que `"showToast('success'" not in texto` no podía
+    # fallar nunca. Lo descubrí cambiando el aviso a 'success' a propósito y
+    # viendo pasar el test: un trinquete que no puede fallar es exactamente el
+    # defecto que persigue todo este trabajo, cometido al escribirlo.
+    exito = re.search(r"showToast\(\s*'success'", sin_comentarios)
+    assert exito is None, (
+        "BlueprintView vuelve a anunciar un éxito y esta vista no hace nada. "
+        "El de Hydra Protocol es el peor de todos: quien lo lee deja de "
+        "preocuparse por ficheros que siguen expuestos."
+    )
+    # Y los dos `setTimeout` que fingían el trabajo tampoco pueden volver.
+    assert "setTimeout" not in sin_comentarios, (
+        "Un setTimeout en esta vista es una espera falsa: antes había uno de 3 s "
+        "para «importar» y otro de 2,5 s para «proteger», y los dos acababan en "
+        "un éxito inventado."
     )
 
 
