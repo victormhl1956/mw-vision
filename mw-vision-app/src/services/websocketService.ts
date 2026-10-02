@@ -13,12 +13,15 @@ interface WebSocketMessage {
 
 class WebSocketService {
   private ws: WebSocket | null = null;
-  private currentUrl: string = '';
   private connectionStatus: ConnectionStatus = 'disconnected';
   private simulationInterval: any = null;
 
-  connect(url: string = wsUrl('/ws')) {
-    this.currentUrl = url;
+  // Sin parámetro de URL. Lo tenía, con `wsUrl('/ws')` por defecto, y eso es
+  // una puerta abierta: cualquiera que llame `connect(otraUrl)` abre un
+  // WebSocket sin token y el backend lo cierra con 1008 sin que se sepa por
+  // qué. La URL la decide wsUrl() y nadie más.
+  connect() {
+    const url = wsUrl('/ws');
     this.connectionStatus = 'connecting';
     this.updateStatus();
     try {
@@ -56,7 +59,7 @@ class WebSocketService {
 
   private scheduleReconnect() {
     if (this.connectionStatus === 'disconnected') {
-      setTimeout(() => this.connect(this.currentUrl), 1000);
+      setTimeout(() => this.connect(), 1000);
     }
   }
 
@@ -87,7 +90,8 @@ class WebSocketService {
 }
 
 export const wsService = new WebSocketService();
-export const connectToBackend = (url?: string) => wsService.connect(url);
+// Sin parámetro: la URL la decide wsUrl(), que es quien pone el token.
+export const connectToBackend = () => wsService.connect();
 export const disconnectFromBackend = () => wsService.disconnect();
 export const sendCrewCommand = (command: string) => wsService.send({ type: 'crew_command', data: { command } });
 export const sendAgentCommand = (agentId: string, command: string) => wsService.send({ type: 'agent_command', agentId, data: { command } });

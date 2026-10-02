@@ -10,6 +10,7 @@
  */
 
 import { create } from 'zustand'
+import { hasWsToken, wsUrl } from '../services/wsUrl'
 import { api, type Agent as ApiAgent } from '../services/api'
 
 // ============================================================================
@@ -90,19 +91,39 @@ export const useCrewStore = create<CrewState>((set, get) => ({
   init: async () => {
     try {
       set({ connectionStatus: 'connecting' })
-      const agents = await api.getAgents()
-      const stats = await api.getStats()
 
-      set({
-        agents,
-        totalCost: stats.totalCost,
-        connectionStatus: 'connected'
-      })
+      // La siembra REST y el WebSocket son independientes, y aquí no lo eran:
+      // `getStats()` iba primero, /api/stats da 404 en el entrypoint que
+      // arranca PM2 —vive sólo en src/main.py— y la excepción saltaba al catch
+      // de abajo, así que el WebSocket NO LLEGABA A CREARSE. La pantalla decía
+      // «WebSocket: Connection Error» y la causa era un 404 de otra ruta.
+      //
+      // Cada fallo se cuenta por separado y ninguno impide al otro. Es el mismo
+      // criterio que /health: degradado, y diciendo qué parte.
+      try {
+        set({ agents: await api.getAgents() })
+      } catch (e) {
+        console.error('[CrewStore] no pude leer los agentes:', e)
+      }
+      try {
+        const stats = await api.getStats()
+        set({ totalCost: stats.totalCost })
+      } catch (e) {
+        console.error(
+          '[CrewStore] no pude leer las estadísticas (en el entrypoint de PM2 ' +
+          '/api/stats es 404); el WebSocket sigue adelante:', e)
+      }
 
-      // Setup WebSocket — base URL from env (supports Tailscale remote access)
-      const WS_BASE = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8000'
-      const WS_URL = `${WS_BASE}/ws`
-      const ws = new WebSocket(WS_URL)
+      // El WebSocket, por `wsUrl()` y no a mano.
+      //
+      // Aquí se armaba la URL con `${VITE_WS_BASE}/ws` SIN TOKEN, y el backend
+      // autentica /ws desde el 1-oct: cerraba cada conexión con 1008 y la
+      // interfaz mostraba «Connection Error» sin causa. `services/wsUrl.ts`
+      // existía y hacía lo correcto, pero sólo lo usaban useWebSocket.ts y
+      // websocketService.ts, que no los importa NADIE. El arreglo estaba
+      // escrito en el camino que no se ejecuta — el mismo defecto que vengo
+      // persiguiendo, cometido al arreglarlo.
+      const ws = new WebSocket(wsUrl('/ws'))
 
       ws.onmessage = (event: MessageEvent) => {
         try {
@@ -182,7 +203,23 @@ export const useCrewStore = create<CrewState>((set, get) => ({
         }
       }
 
-      ws.onclose = () => set({ connectionStatus: 'disconnected' })
+      ws.onclose = (evento: CloseEvent) => {
+        // 1008 = el backend rechazó el token. Decirlo importa: sin esto, un
+        // problema de configuración se lee como un problema de red, que es
+        // exactamente lo que pasó durante un día entero.
+        if (evento.code === 1008) {
+          console.error(
+            '[CrewStore] el backend rechazó la conexión (1008). ' +
+            (hasWsToken
+              ? 'El VITE_WS_TOKEN configurado no es válido para la clave de ' +
+                'firma del backend.'
+              : 'No hay VITE_WS_TOKEN: acúñalo con ' +
+                'python backend/scripts/issue_ws_token.py'))
+          set({ connectionStatus: 'error' })
+          return
+        }
+        set({ connectionStatus: 'disconnected' })
+      }
       ws.onerror = () => set({ connectionStatus: 'error' })
 
     } catch (error) {

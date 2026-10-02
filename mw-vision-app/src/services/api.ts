@@ -29,10 +29,45 @@ export interface Stats {
 }
 
 export const api = {
+    /**
+     * Los agentes, vengan como vengan.
+     *
+     * Los dos puntos de entrada hablan dialectos distintos y el frontend se
+     * escribió contra el que NO arranca:
+     *
+     *   src/main.py       ->  [ { id, name, model, status, totalCost, ... } ]
+     *   routers/agents.py ->  { agents: [ { id, name, model, status, cost,
+     *                                        last_update } ], total_cost }
+     *
+     * PM2 arranca el segundo. Sin normalizar, `agents.find` reventaba y React
+     * desmontaba el árbol entero: pantalla en blanco. No se veía porque el 404
+     * de /api/stats mataba la inicialización antes de llegar aquí.
+     */
     async getAgents(): Promise<Agent[]> {
         const response = await fetch(`${API_BASE}/agents`);
         if (!response.ok) throw new Error('Failed to fetch agents');
-        return response.json();
+        const cuerpo = await response.json();
+        const crudos: any[] = Array.isArray(cuerpo)
+            ? cuerpo
+            : Array.isArray(cuerpo?.agents) ? cuerpo.agents : [];
+        if (!Array.isArray(cuerpo) && !Array.isArray(cuerpo?.agents)) {
+            // Ni array ni {agents:[…]}: se devuelve vacío y se dice, en vez de
+            // dejar que un `.find` sobre un objeto tumbe la aplicación.
+            console.error(
+                '[api] /agents devolvió una forma que no reconozco:',
+                cuerpo);
+        }
+        return crudos.map((a) => ({
+            id: String(a.id ?? ''),
+            name: String(a.name ?? ''),
+            model: String(a.model ?? ''),
+            status: (a.status ?? 'idle') as Agent['status'],
+            tasksCompleted: Number(a.tasksCompleted ?? a.tasks_completed ?? 0),
+            totalCost: Number(a.totalCost ?? a.cost ?? a.total_cost ?? 0),
+            lastResponseTime: Number(
+                a.lastResponseTime ?? a.last_response_time ?? 0),
+            lastUpdate: String(a.lastUpdate ?? a.last_update ?? ''),
+        }));
     },
 
     async getAgent(id: string): Promise<Agent> {
