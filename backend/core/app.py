@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from typing import Dict
+
 from modules.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from modules.crew import (aviso_simulacion, simulacion_activa,
                           simulate_agent_updates)
@@ -40,6 +42,23 @@ async def lifespan(app: FastAPI):
         task.cancel()
 
 
+# Los routers del ecosistema se cargan con guarda: si uno no importa, la
+# aplicación arranca sin él y el MOTIVO queda visible en /api y en /health, en
+# vez de desaparecer en una línea de consola que nadie lee.
+ERRORES_ECOSISTEMA: Dict[str, str] = {}
+
+
+def _router_opcional(punteado: str, etiqueta: str):
+    """El router, o None con el motivo anotado."""
+    try:
+        modulo = __import__(punteado, fromlist=["router"])
+        return getattr(modulo, "router")
+    except Exception as e:  # noqa: BLE001 — cualquier fallo deja la causa
+        ERRORES_ECOSISTEMA[etiqueta] = f"{type(e).__name__}: {e}"
+        print(f"[MW-Vision] {etiqueta} no cargado: {e}")
+        return None
+
+
 def create_app() -> FastAPI:
     """Create and configure FastAPI application"""
 
@@ -62,5 +81,19 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "Authorization"],
     )
+
+    # El ecosistema. Esto faltaba, y el agujero era el de febrero otra vez:
+    # main.py registraba el procesador de conversaciones y el de YouTube, y
+    # main_modular.py —que es lo que arranca PM2— no. Así que /api/chat/* y
+    # /api/yt/* daban 404 en producción mientras el código existía, pasaba sus
+    # tests y la interfaz los pedía. Lo encontré arrancando la aplicación de
+    # verdad, no leyendo: tests/test_entrypoint_sirve_lo_pedido.py lo fija.
+    for punteado, etiqueta, prefijo in (
+            ("routers.yt_processor", "yt_processor", "/api/yt/*"),
+            ("modules.chat_processor.router", "chat_processor", "/api/chat/*")):
+        router = _router_opcional(punteado, etiqueta)
+        if router is not None:
+            app.include_router(router)
+            print(f"[MW-Vision] {etiqueta} registrado ({prefijo})")
 
     return app
