@@ -113,3 +113,49 @@ def test_la_comprobacion_puede_fallar(cliente):
     assert r.status_code == 200, r.text[:200]
     assert r.json(), "/api/agents devolvió un cuerpo vacío"
     assert cliente.get("/api/ruta-que-no-existe").status_code == 404
+
+
+def test_el_saludo_del_websocket_usa_un_vocabulario_que_la_interfaz_entiende(
+        cliente, monkeypatch):
+    """
+    El cuarto defecto de la misma familia: los dos entrypoints hablan
+    vocabularios distintos y el frontend escuchaba el del que no arranca.
+
+      src/main.py           -> {"type": "initial_state", "agents": [...]}
+      routers/websocket.py  -> {"type": "init", "data": {"agents": [...]}}
+
+    PM2 sirve el segundo. El mensaje llegaba, no encajaba con ningún caso del
+    switch, y la pantalla se quedaba en «Connecting…» con el socket abierto y
+    autenticado. El frontend acepta ahora los dos; esto fija que el saludo sea
+    uno de ellos y que traiga los agentes donde el frontend los busca.
+    """
+    import scripts.issue_ws_token as emisor  # noqa: F401  (sólo para el path)
+    from src.security.websocket_auth import WebSocketAuthenticator
+
+    token = WebSocketAuthenticator().generate_token()
+    with cliente.websocket_connect(f"/ws?token={token}") as ws:
+        saludo = ws.receive_json()
+
+    assert saludo.get("type") in ("init", "initial_state"), (
+        f"el saludo usa un «type» que el frontend no reconoce: "
+        f"{saludo.get('type')!r}")
+    agentes = saludo.get("agents")
+    if agentes is None:
+        agentes = (saludo.get("data") or {}).get("agents")
+    assert isinstance(agentes, list), (
+        "el saludo no trae los agentes ni en la raíz ni en «data»: "
+        f"{sorted(saludo)}")
+    for a in agentes:
+        for campo in ("id", "name", "status"):
+            assert campo in a, f"a un agente del saludo le falta «{campo}»: {a}"
+
+
+def test_el_websocket_rechaza_sin_token(cliente):
+    """El contrapeso del de arriba: si aceptara cualquier cosa, no probaría nada."""
+    import pytest as _pytest
+    from starlette.websockets import WebSocketDisconnect
+
+    with _pytest.raises(WebSocketDisconnect) as e:
+        with cliente.websocket_connect("/ws") as ws:
+            ws.receive_json()
+    assert e.value.code == 1008, f"cerró con {e.value.code}, esperaba 1008"

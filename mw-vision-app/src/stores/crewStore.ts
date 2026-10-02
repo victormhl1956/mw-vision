@@ -131,15 +131,42 @@ export const useCrewStore = create<CrewState>((set, get) => ({
           const { type, agent, decision, actualCost, responseTime } = message
 
           switch (type) {
-            case 'initial_state':
-              // Initial state from backend
+            // Los dos puntos de entrada hablan vocabularios distintos y el
+            // frontend escuchaba el del que NO arranca: `src/main.py` manda
+            // «initial_state» con los agentes en la raíz, y
+            // `routers/websocket.py` —lo que sirve PM2— manda «init» con los
+            // agentes dentro de `data`. El mensaje llegaba, no encajaba con
+            // ningún caso, y el estado se quedaba en «Connecting…» para
+            // siempre: socket abierto, autenticado y la pantalla diciendo que
+            // no. Se aceptan los dos.
+            case 'init':
+            case 'initial_state': {
+              const crudos: any[] = Array.isArray(message.agents)
+                ? message.agents
+                : Array.isArray(message.data?.agents) ? message.data.agents : []
+              if (!crudos.length) {
+                console.warn(
+                  '[CrewStore] el saludo del WebSocket no traía agentes:',
+                  message)
+              }
+              const agentes = crudos.map((a: any) => ({
+                id: String(a.id ?? ''),
+                name: String(a.name ?? ''),
+                model: String(a.model ?? ''),
+                status: (a.status ?? 'idle') as Agent['status'],
+                tasksCompleted: Number(a.tasksCompleted ?? a.tasks_completed ?? 0),
+                totalCost: Number(a.totalCost ?? a.cost ?? 0),
+                lastResponseTime: Number(a.lastResponseTime ?? a.last_response_time ?? 0),
+                lastUpdate: String(a.lastUpdate ?? a.last_update ?? ''),
+              })) as Agent[]
               set({
-                agents: message.agents,
-                totalCost: message.agents.reduce((sum: number, a: Agent) => sum + (a.totalCost || 0), 0),
+                agents: agentes,
+                totalCost: agentes.reduce((sum, a) => sum + (a.totalCost || 0), 0),
                 connectionStatus: 'connected'
               })
-              console.log('[CrewStore] Initial state loaded from backend')
+              console.log(`[CrewStore] estado inicial por «${type}»: ${agentes.length} agentes`)
               break
+            }
 
             case 'agent_status_changed':
               // Agent status changed (running/idle/paused)
