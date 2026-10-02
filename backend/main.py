@@ -458,9 +458,17 @@ async def get_crew_state():
 
 @app.get("/api/security")
 async def get_security_metrics():
-    """Security metrics endpoint."""
+    """
+    Security metrics, plus what the application can prove about itself.
+
+    Ver modules/security/evidencia.py: el panel escrito a mano traía ocho
+    comprobaciones fijas en 'pass' y las siguió mostrando los ocho meses en que
+    el endpoint de WebSocket no autenticaba.
+    """
+    from modules.security.evidencia import evidencia_de_seguridad
     from src.security.audit_logger import AuditLogger, get_audit_logger
     return {
+        "evidence": evidencia_de_seguridad(app),
         "security_metrics": security_metrics,
         "active_connections": len(manager.active_connections),
         "per_ip_connections": dict(manager.max_connections_per_ip),
