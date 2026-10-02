@@ -11,21 +11,17 @@ export interface Agent {
     lastUpdate: string;
 }
 
-export interface RoutingDecision {
-    timestamp: string;
-    query: string;
-    complexity: number;
-    selectedModel: string;
-    reasoning: string;
-    estimatedCost: number;
-}
-
-export interface Stats {
-    totalCost: number;
-    totalTasks: number;
-    activeAgents: number;
-    savings: number;
-    allSonnetCost: number;
+/**
+ * Lo que /api/agents devuelve, junto: los agentes y el coste acumulado.
+ *
+ * `costeTotal` es `null` cuando la respuesta no lo trae —la forma de
+ * src/main.py es un array pelado y no lo lleva—. Null y 0 no son lo mismo:
+ * null es «no vino», 0 es «vino y vale cero». Quien lo consume no debe
+ * machacar un coste conocido con un cero inventado.
+ */
+export interface AgentesYCoste {
+    agentes: Agent[];
+    costeTotal: number | null;
 }
 
 export const api = {
@@ -43,7 +39,7 @@ export const api = {
      * desmontaba el árbol entero: pantalla en blanco. No se veía porque el 404
      * de /api/stats mataba la inicialización antes de llegar aquí.
      */
-    async getAgents(): Promise<Agent[]> {
+    async getAgents(): Promise<AgentesYCoste> {
         const response = await fetch(`${API_BASE}/agents`);
         if (!response.ok) throw new Error('Failed to fetch agents');
         const cuerpo = await response.json();
@@ -57,7 +53,7 @@ export const api = {
                 '[api] /agents devolvió una forma que no reconozco:',
                 cuerpo);
         }
-        return crudos.map((a) => ({
+        const agentes = crudos.map((a) => ({
             id: String(a.id ?? ''),
             name: String(a.name ?? ''),
             model: String(a.model ?? ''),
@@ -68,33 +64,12 @@ export const api = {
                 a.lastResponseTime ?? a.last_response_time ?? 0),
             lastUpdate: String(a.lastUpdate ?? a.last_update ?? ''),
         }));
+        const crudo = (cuerpo as any)?.total_cost ?? (cuerpo as any)?.totalCost;
+        return {
+            agentes,
+            costeTotal: typeof crudo === 'number' && Number.isFinite(crudo)
+                ? crudo
+                : null,
+        };
     },
-
-    async getAgent(id: string): Promise<Agent> {
-        const response = await fetch(`${API_BASE}/agents/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch agent');
-        return response.json();
-    },
-
-    async executeTask(agentId: string, task: string): Promise<any> {
-        const response = await fetch(`${API_BASE}/agents/${agentId}/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ task })
-        });
-        if (!response.ok) throw new Error('Failed to execute task');
-        return response.json();
-    },
-
-    async getRoutingHistory(): Promise<RoutingDecision[]> {
-        const response = await fetch(`${API_BASE}/routing-history`);
-        if (!response.ok) throw new Error('Failed to fetch routing history');
-        return response.json();
-    },
-
-    async getStats(): Promise<Stats> {
-        const response = await fetch(`${API_BASE}/stats`);
-        if (!response.ok) throw new Error('Failed to fetch stats');
-        return response.json();
-    }
 };

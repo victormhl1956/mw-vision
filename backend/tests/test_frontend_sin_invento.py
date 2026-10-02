@@ -214,12 +214,60 @@ def test_el_medidor_del_frontend_recorre_el_grafo_de_imports():
         "puede distinguir una llamada viva de una muerta")
     alcanzables = d.get("ficheros_alcanzables")
     assert isinstance(alcanzables, int) and alcanzables > 0, d.get("entrada")
-    # Y la prueba de que el recorrido DISCRIMINA: hoy hay al menos una llamada
-    # sin consumidor (hooks/useWebSocket.ts no lo importa nadie). Si algún día
-    # no queda ninguna, este test lo dirá y se borra la lista.
     assert "llamadas_sin_consumidor" in d, (
         "el medidor ya no separa las llamadas sin consumidor")
-    assert d["llamadas_sin_consumidor"], (
-        "ninguna llamada sin consumidor: o se limpió el código muerto "
-        "(celébralo y borra esta comprobación) o el recorrido dejó de "
-        "discriminar, que es peor")
+
+
+def test_el_recorrido_discrimina_vivo_de_muerto(tmp_path):
+    """
+    La prueba de que el recorrido DISCRIMINA de verdad, sobre un árbol de
+    juguete y no sobre este repositorio.
+
+    Antes esto se comprobaba exigiendo que hoy hubiera al menos una llamada sin
+    consumidor, porque `hooks/useWebSocket.ts` no lo importaba nadie. Esa
+    comprobación tenía un defecto de diseño que se vio en cuanto funcionó:
+    DEPENDÍA DE QUE EL CÓDIGO MUERTO SIGUIERA AHÍ. Al borrar los dos módulos
+    muertos el 2026-10-02 la lista quedó vacía y el test falló — avisando, como
+    estaba escrito, de que había que elegir entre celebrarlo o sospechar del
+    recorrido. Pero borrarlo sin más deja al medidor sin nadie que compruebe que
+    distingue, que es justo lo que el medidor existe para no hacer.
+
+    Un árbol sintético lo arregla: dos ficheros, uno alcanzable desde el punto
+    de entrada y otro no, y cada llamada tiene que caer en su cubo. No depende
+    de que este repositorio contenga un defecto para poder comprobarse.
+    """
+    if shutil.which("node") is None:
+        pytest.skip("hace falta node")
+    if not os.path.isdir(os.path.join(FRONTEND, "node_modules", "typescript")):
+        pytest.skip("hace falta el typescript del frontend instalado")
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "main.tsx").write_text(
+        "import { vivo } from './vivo'\nvivo()\n", encoding="utf-8")
+    (src / "vivo.ts").write_text(
+        "export async function vivo() {\n"
+        "  return fetch('/api/vivo').then(r => r.json())\n"
+        "}\n", encoding="utf-8")
+    # Nadie lo importa. Su fetch existe en el árbol y no lo pide ninguna
+    # pantalla: es exactamente el caso que el medidor ciego contaba como real.
+    (src / "muerto.ts").write_text(
+        "export async function muerto() {\n"
+        "  return fetch('/api/muerto').then(r => r.json())\n"
+        "}\n", encoding="utf-8")
+
+    p = subprocess.run(["node", HERRAMIENTA, str(src)],
+                       capture_output=True, text=True, cwd=FRONTEND)
+    assert p.returncode == 0, p.stderr[:500]
+    d = json.loads(p.stdout)
+
+    assert d.get("entrada") == "main.tsx", d.get("entrada")
+    vivas = {l["camino"] for l in d["llamadas"]}
+    muertas = {l["camino"] for l in d["llamadas_sin_consumidor"]}
+    assert "/api/vivo" in vivas, (
+        f"el medidor no vio la llamada alcanzable: vivas={vivas}")
+    assert "/api/muerto" in muertas, (
+        f"el medidor contó como real una llamada que nadie importa: "
+        f"vivas={vivas} muertas={muertas}")
+    assert "/api/muerto" not in vivas
+    assert "/api/vivo" not in muertas

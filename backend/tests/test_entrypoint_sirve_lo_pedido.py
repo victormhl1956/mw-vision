@@ -32,25 +32,38 @@ BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND = os.path.join(os.path.dirname(BACKEND), "mw-vision-app")
 EXTRACTOR = os.path.join(FRONTEND, "tools", "llamadas_ui.mjs")
 
-# Caminos que la interfaz pide y que main_modular NO sirve. Cada línea es una
-# pantalla rota en producción, con su consecuencia medida.
+# Caminos que la interfaz pide y que main_modular NO sirve. Cada línea sería una
+# pantalla rota en producción.
 #
-# Las cuatro son de `src/main.py`, y las cuatro sirven dato inventado —SIMULADO
-# o MEMORIA SEMILLA—. Registrarlas en el entrypoint para poner este test verde
-# sería meter rutas falsas en producción, que es justo lo contrario de lo que
-# busca esta batería. Salen de aquí por una de dos puertas: o la interfaz deja
-# de pedirlas, o alguien las implementa contra dato real.
+# ESTÁ VACÍA, y llegar a vacía es el trabajo. Ayer tenía cuatro —/api/stats,
+# /api/routing-history, /api/agents/{id} y /api/agents/{id}/execute—, las cuatro
+# implementadas sólo en `src/main.py` y las cuatro sirviendo dato inventado
+# (SIMULADO o MEMORIA SEMILLA). Escribí entonces que salían «por una de dos
+# puertas: o la interfaz deja de pedirlas, o alguien las implementa contra dato
+# real», y dejé las cuatro como deuda declarada.
 #
-# Consecuencia observada en el navegador el 2026-10-02: `crewStore.init()`
-# revienta con «Failed to fetch stats», y la cabecera muestra ERROR.
-EXENTAS: dict[str, str] = {
-    "/api/stats": "sólo en src/main.py, y sirve estadísticas de una semilla de "
-                  "tres agentes; su 404 rompe crewStore.init()",
-    "/api/routing-history": "sólo en src/main.py, y es SIMULADO",
-    "/api/agents/{param}": "sólo en src/main.py, y sirve la misma semilla",
-    "/api/agents/{param}/execute": "sólo en src/main.py, y simula el enrutado "
-                                   "con random.randint(1, 10)",
-}
+# Medido después: la puerta correcta era la primera, para las cuatro.
+#
+#   - `getStats()` se llamaba una vez y sólo se leía `totalCost` de la
+#     respuesta. Ese número es `crew_state.total_cost`, que routers/agents.py ya
+#     devuelve como `total_cost` en la misma petición de los agentes, desde una
+#     ruta que el entrypoint de producción SÍ sirve. Los otros cuatro campos de
+#     `Stats` no los leía nadie, y `savings` / `allSonnetCost` se calculaban
+#     contra un `avg_sonnet_cost = 0.01` escrito a mano.
+#   - `getRoutingHistory()`, `getAgent(id)` y `executeTask()`: CERO llamadores.
+#     El historial de enrutado que la pantalla muestra llega por el WebSocket,
+#     no por REST.
+#
+# Así que no había cuatro pantallas esperando un backend: había cuatro funciones
+# muertas en el cliente apuntando a rutas que fabricaban datos. Registrarlas en
+# producción para poner este test verde habría sido meter dato falso donde no
+# hacía falta ninguno. Borrar la llamada es el arreglo; el 404 desaparece porque
+# nadie pregunta.
+#
+# Si vuelve a aparecer una línea aquí, es deuda real otra vez: una pantalla que
+# pide algo que producción no sirve. El test de abajo impide que crezca en
+# silencio.
+EXENTAS: dict[str, str] = {}
 
 
 def _caminos_que_pide_la_interfaz() -> list[str]:
@@ -146,3 +159,44 @@ def test_la_comprobacion_puede_fallar(monkeypatch):
     assert not _encaja("/api/chat/{param}/inventado", servidos)
     # Y uno que sí tiene que encajar, con parámetro de nombre distinto.
     assert _encaja("/api/chat/conversations/{param}", servidos)
+
+
+# Las cuatro que se resolvieron borrando la llamada del cliente, no sirviéndolas.
+# No pueden volver a EXENTAS: eso convertiría «lo arreglamos» en «lo volvimos a
+# aceptar», que es exactamente cómo una deuda declarada se vuelve permanente.
+RESUELTAS_BORRANDO = (
+    "/api/stats",
+    "/api/routing-history",
+    "/api/agents/{param}",
+    "/api/agents/{param}/execute",
+)
+
+
+@pytest.mark.parametrize("camino", RESUELTAS_BORRANDO)
+def test_una_ruta_resuelta_no_vuelve_a_exentarse(camino):
+    """
+    El trinquete del propio trinquete.
+
+    El primer test ya falla si la interfaz vuelve a pedir una de estas cuatro.
+    Pero hay una salida fácil para ponerlo verde sin arreglar nada: añadir la
+    línea a EXENTAS otra vez. Esto la cierra. Si de verdad hace falta volver a
+    pedir una de las cuatro, el camino es servirla contra dato real en
+    main_modular, no exentarla.
+    """
+    assert camino not in EXENTAS, (
+        f"{camino} se resolvió el 2026-10-02 quitando la llamada muerta del "
+        f"cliente. Volver a exentarla no es arreglarla: o la interfaz no la "
+        f"pide, o main_modular la sirve con dato medido.")
+
+
+def test_la_interfaz_ya_no_pide_ninguna_de_las_cuatro():
+    """
+    Y el hecho que lo sostiene, medido sobre el grafo de imports del frontend y
+    no sobre el texto de los ficheros: ninguna de las cuatro se pide ya.
+    """
+    pedidos = set(_caminos_que_pide_la_interfaz())
+    assert pedidos, "el extractor no encontró ninguna llamada HTTP"
+    vuelven = sorted(pedidos & set(RESUELTAS_BORRANDO))
+    assert not vuelven, (
+        "la interfaz volvió a pedir rutas que producción no sirve y que "
+        "fabricaban su respuesta: " + ", ".join(vuelven))

@@ -98,20 +98,29 @@ export const useCrewStore = create<CrewState>((set, get) => ({
       // de abajo, así que el WebSocket NO LLEGABA A CREARSE. La pantalla decía
       // «WebSocket: Connection Error» y la causa era un 404 de otra ruta.
       //
+      // Y la segunda mitad del arreglo, que ayer dejé como deuda: la llamada a
+      // /api/stats SOBRABA. Lo único que se leía de su respuesta era
+      // `totalCost`, y ese número es `crew_state.total_cost`, que
+      // routers/agents.py ya devuelve como `total_cost` en la MISMA petición
+      // que trae los agentes — una ruta que el entrypoint de producción sí
+      // sirve. Los otros cuatro campos de `Stats` no los leía nadie, y dos de
+      // ellos (`savings`, `allSonnetCost`) se calculaban contra un
+      // `avg_sonnet_cost = 0.01` escrito a mano: un ahorro inventado contra un
+      // precio inventado. Registrar /api/stats en producción para callar un 404
+      // habría sido meter dato falso donde no hacía falta ninguno.
+      //
       // Cada fallo se cuenta por separado y ninguno impide al otro. Es el mismo
       // criterio que /health: degradado, y diciendo qué parte.
       try {
-        set({ agents: await api.getAgents() })
+        const { agentes, costeTotal } = await api.getAgents()
+        // `costeTotal` null = la respuesta no lo traía. No se escribe un cero
+        // en su lugar: el saludo del WebSocket puede traerlo, y un cero
+        // inventado se vería igual que un cero medido en la cabecera.
+        set(costeTotal === null
+          ? { agents: agentes }
+          : { agents: agentes, totalCost: costeTotal })
       } catch (e) {
         console.error('[CrewStore] no pude leer los agentes:', e)
-      }
-      try {
-        const stats = await api.getStats()
-        set({ totalCost: stats.totalCost })
-      } catch (e) {
-        console.error(
-          '[CrewStore] no pude leer las estadísticas (en el entrypoint de PM2 ' +
-          '/api/stats es 404); el WebSocket sigue adelante:', e)
       }
 
       // El WebSocket, por `wsUrl()` y no a mano.

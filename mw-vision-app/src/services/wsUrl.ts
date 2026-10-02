@@ -3,12 +3,20 @@
  *
  * Two defects this replaces:
  *
- * 1. `ws://localhost:8000/ws` was hardcoded in useWebSocket.ts and
- *    websocketService.ts, so `VITE_WS_BASE` — documented in .env.example for
- *    Tailscale access — was never read. Remote access could not work for the
- *    WebSocket, only for the REST API.
+ * 1. `ws://localhost:8000/ws` was hardcoded in two now-deleted modules
+ *    (useWebSocket.ts, websocketService.ts), so `VITE_WS_BASE` — documented in
+ *    .env.example for Tailscale access — was never read. Remote access could
+ *    not work for the WebSocket, only for the REST API.
  * 2. The backend now authenticates /ws (it served any connection before), so
  *    the token has to travel with every connection.
+ *
+ * Those two modules were the only callers of this file, and nothing imported
+ * THEM, so the fix above sat on a path the app never took: crewStore.ts went on
+ * building its own tokenless URL and every connection closed with 1008. That is
+ * why they are gone — a correct module reachable only from dead code reads as a
+ * finished fix. websocketService.ts also added $0.001 per running agent every
+ * two seconds into the same `totalCost` the budget guard compares against
+ * `budgetLimit`: a client-side invention that MW_SIMULADOR=off could not reach.
  */
 
 const DEFAULT_BASE = 'ws://localhost:8000';
