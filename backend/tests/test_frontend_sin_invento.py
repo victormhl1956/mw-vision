@@ -37,10 +37,8 @@ HERRAMIENTA = os.path.join(FRONTEND, "tools", "llamadas_ui.mjs")
 # Deuda declarada, con su motivo. Borrar una línea es la forma de exigir que se
 # arregle; añadir una debería costar una conversación.
 SIMULACIONES_CONOCIDAS = {
-    "components/security/SecurityDashboard.tsx":
-        "el botón de refrescar suma peticiones bloqueadas y amenazas con "
-        "Math.random(); el panel entero debería leer /api/security, que ya "
-        "sirve métricas reales y nadie pide",
+    # SecurityDashboard.tsx salió de esta lista el 2026-10-02: ahora lee
+    # /api/security y su botón vuelve a medir en vez de sumar Math.random().
     "views/FlowView.tsx":
         "handleLaunch() reparte Math.random() * 2 como coste de cada agente; "
         "es un simulador independiente del backend, así que MW_SIMULADOR=off "
@@ -48,13 +46,19 @@ SIMULACIONES_CONOCIDAS = {
 }
 
 LITERALES_CONOCIDOS = {
-    "components/security/SecurityDashboard.tsx":
-        "ocho comprobaciones de seguridad escritas a mano, todas en 'pass', y "
-        "una puntuación de 92 fija",
+    # SecurityDashboard.tsx salió de esta lista el 2026-10-02: sus ocho
+    # comprobaciones fijas en 'pass' y la puntuación de 92 ya no existen.
     "views/BlueprintView.tsx":
         "initialMockFiles, y handleGitHubImport() que devuelve cuatro ficheros "
         "inventados tras un setTimeout de 3 s y anuncia «Imported 4 files»",
 }
+
+
+def _sin_comentarios(texto: str) -> str:
+    """El código sin sus comentarios de bloque ni de línea."""
+    sin_bloque = re.sub(r"/\*.*?\*/", " ", texto, flags=re.S)
+    return "\n".join(
+        re.sub(r"//.*$", "", linea) for linea in sin_bloque.splitlines())
 
 
 def _medir():
@@ -134,13 +138,25 @@ def test_el_panel_de_seguridad_no_puede_declararse_sano_a_si_mismo():
     # Contar sin la coma daba 9 y me hizo escribir un trinquete con un número
     # que no había medido.
     fijas = len(re.findall(r"status:\s*'pass'\s*,", texto))
-    assert fijas <= 8, (
+    # El 2026-10-02 había ocho; el panel se cableó a /api/security el mismo día
+    # y ahora tienen que ser cero. El trinquete ya no admite ninguna: volver a
+    # escribir una comprobación a mano es volver al panel que se declaraba sano.
+    assert fijas == 0, (
         f"{fijas} comprobaciones de seguridad cableadas a 'pass' en el panel. "
-        f"Había 8 el 2026-10-02 y es deuda declarada; añadir más es ir hacia "
-        f"atrás. La salida: leer /api/security, que ya sirve métricas reales."
+        f"Ya no vale ninguna: el panel lee /api/security, que devuelve cada "
+        f"comprobación con su evidencia y un tercer estado para lo que no se "
+        f"puede medir."
     )
-    if "fetch" in texto or "/api/security" in texto:
-        assert fijas == 0, (
-            "El panel ya pide /api/security, así que no puede quedar ninguna "
-            "comprobación cableada a 'pass': bórralas y usa la respuesta."
+    assert "/api/security" in texto, (
+        "El panel dejó de pedir /api/security. Si vuelve a decidir por sí "
+        "mismo qué pasa y qué no, vuelve a ser el panel de febrero."
+    )
+    # Sin comentarios: el comentario que explica que esas dos frases se
+    # quitaron las contiene, y hacerlo fallar por ahí obligaría a empobrecer la
+    # explicación para contentar al test.
+    sin_comentarios = _sin_comentarios(texto)
+    for prohibido in ("SOC 2", "encrypted at rest"):
+        assert prohibido not in sin_comentarios, (
+            f"«{prohibido}» es una afirmación fija que nada en este código "
+            f"sostiene; la de SOC 2 además tiene peso legal."
         )
