@@ -23,8 +23,8 @@ aparece un cuarto `/ws`, falla sin que nadie se acuerde de este archivo.
 
 from __future__ import annotations
 
+import ast
 import os
-import re
 import sys
 
 import pytest
@@ -133,8 +133,36 @@ def test_el_websocket_de_src_main_acepta_un_token_valido():
 
 # ── El que generaliza ───────────────────────────────────────────────────────
 
-_DECL_WS = re.compile(r"@\s*\w+\s*\.\s*websocket\s*\(")
 _OMITIR = {"venv", ".venv", "__pycache__", "node_modules", "tests"}
+
+
+def _declara_websocket(texto: str) -> bool:
+    """
+    ¿Hay un decorador @algo.websocket(...) de verdad en este fichero?
+
+    Esto miraba el texto con una expresión regular y encontró los dos agujeros
+    que faltaban, así que la idea era buena. Pero una regex sobre el texto
+    también encuentra decoradores que viven DENTRO de una cadena —los casos de
+    prueba de backend/tools/ los llevan— y marcaba de inseguro un fichero que
+    no sirve ningún WebSocket. Mirar el árbol sintáctico distingue un decorador
+    de un trozo de texto que se le parece, sin perder nada: lo que no es un
+    decorador no autentica a nadie.
+
+    Si el fichero no se puede analizar, se da por sospechoso: un módulo que no
+    compila no demuestra que autentique.
+    """
+    try:
+        arbol = ast.parse(texto)
+    except SyntaxError:
+        return True
+    for n in ast.walk(arbol):
+        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for d in n.decorator_list:
+            f = d.func if isinstance(d, ast.Call) else d
+            if isinstance(f, ast.Attribute) and f.attr == "websocket":
+                return True
+    return False
 
 
 def _modulos_con_websocket() -> list[str]:
@@ -147,7 +175,7 @@ def _modulos_con_websocket() -> list[str]:
             ruta = os.path.join(raiz, nombre)
             with open(ruta, encoding="utf-8", errors="replace") as fh:
                 texto = fh.read()
-            if _DECL_WS.search(texto):
+            if _declara_websocket(texto):
                 hallados.append(ruta)
     return hallados
 

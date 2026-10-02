@@ -181,10 +181,15 @@ def _parse_markdown_generic(
     content: str, platform: str, source_url: str = None
 ) -> ParsedConversation:
     messages: List[ParsedMessage] = []
+    # Cadenas crudas: en una cadena normal, \s y \* son secuencias de escape
+    # invalidas. Python las deja pasar hoy con un DeprecationWarning y las
+    # convertira en error, asi que estos tres patrones dejarian de compilar en
+    # una version futura y el analisis generico de markdown moriria con el
+    # interprete, no con un cambio de codigo.
     patterns = [
-        "(?:^|\n)##\s*(User|Human|You|Assistant|AI|Claude|Gemini|GPT|DeepSeek|Perplexity):\s*\n(.*?)(?=\n##\s|\Z)",
-        "(?:^|\n)\*\*(User|Human|You|Assistant|AI|Claude|Gemini|GPT|DeepSeek):\*\*\s*\n(.*?)(?=\n\*\*|\Z)",
-        "(?:^|\n)(Human|User|Assistant|AI):\s*\n(.*?)(?=\n(?:Human|User|Assistant|AI):|\Z)",
+        r"(?:^|\n)##\s*(User|Human|You|Assistant|AI|Claude|Gemini|GPT|DeepSeek|Perplexity):\s*\n(.*?)(?=\n##\s|\Z)",
+        r"(?:^|\n)\*\*(User|Human|You|Assistant|AI|Claude|Gemini|GPT|DeepSeek):\*\*\s*\n(.*?)(?=\n\*\*|\Z)",
+        r"(?:^|\n)(Human|User|Assistant|AI):\s*\n(.*?)(?=\n(?:Human|User|Assistant|AI):|\Z)",
     ]
     for pattern in patterns:
         matches = list(re.finditer(pattern, content, re.IGNORECASE | re.DOTALL))
