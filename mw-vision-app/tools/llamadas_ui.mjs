@@ -180,4 +180,102 @@ for (const ruta of ficheros(raiz)) {
   ts.forEachChild(sf, visitar);
 }
 
-console.log(JSON.stringify({ raiz, llamadas, sin_resolver: sinResolver }, null, 2));
+// ───────────────────────────────────────────────────────────────────────────
+// Datos escritos dentro del propio frontend
+//
+// Medir las llamadas no basta para decir «el frontend está bien». Un componente
+// puede pedir por fetch Y además pintar una lista escrita a mano, o no pedir
+// nada y pintar sólo literales. Lo segundo es un panel falso sin que el backend
+// tenga ninguna culpa, y afirmarlo sin medirlo sería exactamente el error que
+// este trabajo persigue.
+//
+// Qué cuenta como dato escrito dentro: un array de 2 o más objetos declarado en
+// un fichero de componente o vista. Un array de cadenas (nombres de pestañas,
+// clases de CSS) o un objeto de configuración NO cuenta: es presentación, no
+// dato. La distinción es deliberadamente conservadora, porque un falso positivo
+// aquí gasta el tiempo de alguien leyendo código que estaba bien.
+// ───────────────────────────────────────────────────────────────────────────
+
+const literales = [];
+// Simulación en el propio navegador: el botón «refrescar» del panel de
+// seguridad sumaba amenazas detectadas con Math.random(). Es la misma categoría
+// que el simulador del backend, en el otro lado del cable, y no se ve midiendo
+// las llamadas.
+const simulaciones = [];
+
+for (const ruta of ficheros(raiz)) {
+  const rel = relative(raiz, ruta).split(sep).join("/");
+  // Sólo donde hay paneles: componentes y vistas. Un literal en services/ o
+  // stores/ es casi siempre configuración o un valor inicial.
+  if (!/^(components|views)\//.test(rel)) continue;
+
+  const texto = readFileSync(ruta, "utf8");
+  const sf = ts.createSourceFile(ruta, texto, ts.ScriptTarget.Latest, true,
+    ruta.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+
+  const visitar = (n) => {
+    if (ts.isCallExpression(n)) {
+      const f = n.expression.getText();
+      // Math.random().toString(36) es una clave de React, no un dato: Toast.tsx
+      // la usa para el id de cada aviso y marcarla sería gastar el tiempo de
+      // quien lo lea. Lo que importa es el azar que acaba en una CIFRA.
+      const esIdentificador = ts.isPropertyAccessExpression(n.parent) &&
+        /^(toString|slice|substr|substring)$/.test(n.parent.name.text);
+      if (/^Math\.(random|floor|ceil|round)$/.test(f) && !esIdentificador &&
+          texto.slice(Math.max(0, n.getStart() - 200), n.getEnd())
+            .includes("Math.random")) {
+        simulaciones.push({
+          fichero: rel,
+          linea: sf.getLineAndCharacterOfPosition(n.getStart()).line + 1,
+          donde: contenedor(n),
+          texto: n.getText().slice(0, 120),
+        });
+      }
+    }
+    if (ts.isArrayLiteralExpression(n)) {
+      const objetos = n.elements.filter((e) => ts.isObjectLiteralExpression(e));
+      if (objetos.length >= 2) {
+        // ¿Lo pinta alguien? Un array que sólo se usa para un tipo o un
+        // valor por defecto de un formulario no es un panel.
+        const nombre = nombreDeclarado(n);
+        literales.push({
+          fichero: rel,
+          linea: sf.getLineAndCharacterOfPosition(n.getStart()).line + 1,
+          nombre,
+          filas: objetos.length,
+          claves: [...new Set(objetos.flatMap((o) => o.properties
+            .map((p) => (p.name ? p.name.getText() : "?"))))].slice(0, 8),
+          donde: contenedor(n),
+        });
+      }
+    }
+    ts.forEachChild(n, visitar);
+  };
+  ts.forEachChild(sf, visitar);
+}
+
+function nombreDeclarado(n) {
+  let p = n.parent;
+  if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+  if (ts.isPropertyAssignment(p) && p.name) return p.name.getText();
+  if (ts.isCallExpression(p)) return `(argumento de ${p.expression.getText()})`;
+  return "(sin nombre)";
+}
+
+// Qué componentes piden algo a la API, directa o indirectamente, para poder
+// decir cuáles pintan SÓLO literales.
+const importaApi = new Map();
+for (const ruta of ficheros(raiz)) {
+  const rel = relative(raiz, ruta).split(sep).join("/");
+  const texto = readFileSync(ruta, "utf8");
+  const pide = /\b(fetch|useWebSocket|api|crewStore|useStore|websocketService)\b/
+    .test(texto);
+  importaApi.set(rel, pide);
+}
+
+console.log(JSON.stringify({
+  raiz, llamadas, sin_resolver: sinResolver,
+  literales: literales.map((l) => ({ ...l,
+    el_fichero_pide_datos: importaApi.get(l.fichero) === true })),
+  simulaciones,
+}, null, 2));
