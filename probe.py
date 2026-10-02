@@ -47,6 +47,94 @@ import sys
 from dataclasses import dataclass, field, asdict
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
+
+# Probe nació cableado a la disposición de mw-vision: `AQUI/backend` y
+# `AQUI/mw-vision-app`. Eso es el mismo defecto que le reprocho a DEEPEX
+# —una herramienta que sólo corre donde se escribió— un nivel más suave: no
+# una letra de unidad, pero sí un proyecto único. Si Probe ha de servir para
+# VeraVadis y para los blogs, tiene que apuntarse a otro sitio y, cuando lo
+# que busca no está, decir que no lo sabe en vez de inventar un veredicto.
+OMITIR = {"venv", ".venv", "node_modules", "__pycache__", ".git", "dist",
+          "build", "site-packages", "generated_reports", ".next", "coverage"}
+
+
+def _hay_rutas_python(d: str) -> bool:
+    """¿Hay al menos un decorador de ruta HTTP/WS en este árbol?"""
+    import re as _re
+    patron = _re.compile(r"@\s*\w+\s*\.\s*(get|post|put|patch|delete|websocket)\s*\(")
+    vistos = 0
+    for base, dirs, nombres in os.walk(d):
+        dirs[:] = [x for x in dirs if x not in OMITIR and not x.startswith(".")]
+        for n in nombres:
+            if not n.endswith(".py"):
+                continue
+            vistos += 1
+            if vistos > 4000:
+                return False
+            try:
+                with open(os.path.join(base, n), encoding="utf-8",
+                          errors="replace") as fh:
+                    if patron.search(fh.read()):
+                        return True
+            except OSError:
+                continue
+    return False
+
+
+def descubrir_backend(raiz: str) -> str | None:
+    """El árbol Python que sirve rutas: lo declarado, lo convencional, o nada."""
+    for candidato in ("backend", "api", "server", "src", "."):
+        d = os.path.normpath(os.path.join(raiz, candidato))
+        if os.path.isdir(d) and _hay_rutas_python(d):
+            return d
+    return None
+
+
+# Candidatos de frontend que el descubrimiento encontró pero no supo decidir.
+# Lo lee el informe para poder nombrarlos.
+FRONTEND_AMBIGUO: list[str] = []
+
+
+def descubrir_frontend(raiz: str) -> str | None:
+    """
+    Un proyecto de node con fuentes, o None si hay más de uno.
+
+    Mi primera versión se quedaba con el primero por orden alfabético, y en
+    mw-vision eso eligió `CLAUDE_DESKTOP_REVIEW` en vez de `mw-vision-app`:
+    los dos tienen package.json y src/, y «el primero» no es un criterio.
+    Es la misma lección que los sensores de las tuberías — cuando varias
+    candidatas encajan, no se elige, se declara la duda — y aquí no elegir
+    cuesta una línea de `--frontend`.
+    """
+    global FRONTEND_AMBIGUO
+    candidatos = []
+    if os.path.isfile(os.path.join(raiz, "package.json")) \
+            and os.path.isdir(os.path.join(raiz, "src")):
+        candidatos.append(raiz)
+    try:
+        for n in sorted(os.listdir(raiz)):
+            d = os.path.join(raiz, n)
+            if n in OMITIR or not os.path.isdir(d):
+                continue
+            if os.path.isfile(os.path.join(d, "package.json")) \
+                    and os.path.isdir(os.path.join(d, "src")):
+                candidatos.append(d)
+    except OSError:
+        return None
+    # Un backend de Python con package.json no es el frontend.
+    candidatos = [d for d in candidatos
+                  if os.path.normpath(d) != os.path.normpath(BACKEND or "")]
+    if len(candidatos) == 1:
+        FRONTEND_AMBIGUO = []
+        return candidatos[0]
+    FRONTEND_AMBIGUO = candidatos
+    return None
+
+
+# Se rellenan en main() a partir de --proyecto. Que sean globales es deliberado:
+# las cuatro preguntas los leen, y pasarlos por parámetro a todas sólo movería
+# el cableado de sitio.
+PROYECTO = AQUI
 BACKEND = os.path.join(AQUI, "backend")
 FRONTEND = os.path.join(AQUI, "mw-vision-app")
 
@@ -77,8 +165,29 @@ def _correr(orden: list[str], cwd: str | None = None,
 
 # ── 1. Arreglos que nadie ejecuta ───────────────────────────────────────────
 
+def _medidor(nombre: str) -> str | None:
+    """
+    Dónde está un medidor: junto a Probe, en el backend medido, o en ninguno.
+
+    Mirar junto a Probe primero permite llevarse la carpeta a otro proyecto;
+    mirar en el backend permite que cada proyecto traiga su propia versión.
+    """
+    for d in (os.path.join(AQUI, "tools"), AQUI,
+              os.path.join(BACKEND or "", "tools"), BACKEND or ""):
+        if not d:
+            continue
+        p = os.path.join(d, nombre)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
 def pregunta_alcanzabilidad(bateria: str | None) -> Respuesta:
     r = Respuesta("¿Hay arreglos de seguridad que nadie ejecuta?", False)
+    if not BACKEND:
+        r.porque_no = ("no encontré árbol Python que medir. Pásalo con "
+                       "--backend.")
+        return r
     guion = bateria or os.path.expanduser(
         "~/.claude/skills/audit-battery/scripts/reachability.py")
     if not os.path.exists(guion):
@@ -123,9 +232,15 @@ def pregunta_alcanzabilidad(bateria: str | None) -> Respuesta:
 
 def pregunta_origen() -> Respuesta:
     r = Respuesta("¿De dónde sale el dato de cada ruta?", False)
-    guion = os.path.join(BACKEND, "tools", "origen_datos.py")
-    if not os.path.exists(guion):
-        r.porque_no = f"no encuentro {guion}"
+    if not BACKEND:
+        r.porque_no = ("no encontré ningún árbol Python que sirva rutas en este "
+                       "proyecto. Pásalo con --backend, o esta pregunta no "
+                       "aplica aquí.")
+        return r
+    guion = _medidor("origen_datos.py")
+    if guion is None:
+        r.porque_no = ("no encuentro origen_datos.py ni junto a Probe ni en el "
+                       "backend; pásalo con --medidores RUTA")
         return r
     cod, salida, err = _correr([sys.executable, guion, BACKEND, "--json"])
     try:
@@ -162,9 +277,20 @@ def pregunta_origen() -> Respuesta:
 
 def pregunta_cruce() -> Respuesta:
     r = Respuesta("¿Lo que pide la interfaz lo sirve algo de verdad?", False)
-    guion = os.path.join(BACKEND, "tools", "panel_a_panel.py")
-    if not os.path.exists(guion):
-        r.porque_no = f"no encuentro {guion}"
+    if not BACKEND or not FRONTEND:
+        falta = "backend" if not BACKEND else "frontend"
+        detalle = ""
+        if falta == "frontend" and FRONTEND_AMBIGUO:
+            detalle = (" Encontré varios y no elijo: " +
+                       ", ".join(os.path.basename(d)
+                                 for d in FRONTEND_AMBIGUO) + ".")
+        r.porque_no = (f"no encontré el {falta} de este proyecto, así que no "
+                       f"puedo cruzar los dos lados. Pásalo con "
+                       f"--{falta}.{detalle}")
+        return r
+    guion = _medidor("panel_a_panel.py")
+    if guion is None:
+        r.porque_no = "no encuentro panel_a_panel.py; pásalo con --medidores"
         return r
     if shutil.which("node") is None:
         r.porque_no = ("hace falta node para leer el frontend; sin él, esta "
@@ -205,15 +331,46 @@ def pregunta_cruce() -> Respuesta:
 
 def pregunta_frontend() -> Respuesta:
     r = Respuesta("¿Se inventa la interfaz sus propias cifras?", False)
-    guion = os.path.join(FRONTEND, "tools", "llamadas_ui.mjs")
-    if not os.path.exists(guion):
-        r.porque_no = f"no encuentro {guion}"
+    if not FRONTEND:
+        if FRONTEND_AMBIGUO:
+            r.porque_no = (
+                "encontré " + str(len(FRONTEND_AMBIGUO)) + " proyectos de node "
+                "con fuentes y ninguno es mejor candidato que otro: " +
+                ", ".join(os.path.basename(d) for d in FRONTEND_AMBIGUO) +
+                ". Dime cuál con --frontend; elegir el primero por orden "
+                "alfabético sería inventar un criterio.")
+        else:
+            r.porque_no = ("no encontré ningún proyecto de node con fuentes en "
+                           "este árbol. Pásalo con --frontend, o esta pregunta "
+                           "no aplica aquí.")
         return r
+    # El extractor necesita un `typescript` que resolver, y lo resuelve desde
+    # SU propia ubicación (createRequire), no desde el proyecto medido. Así que
+    # puede vivir en otro proyecto y medir este: se busca primero dentro del
+    # medido —que es lo ideal, cada proyecto con su versión— y si no está, el
+    # que venga con Probe.
+    guion = None
+    for d in (os.path.join(FRONTEND, "tools"),
+              os.path.join(AQUI, "mw-vision-app", "tools"),
+              os.path.join(AQUI, "tools")):
+        p = os.path.join(d, "llamadas_ui.mjs")
+        if os.path.isfile(p):
+            guion = p
+            break
+    if guion is None:
+        r.porque_no = ("no encuentro llamadas_ui.mjs ni en el proyecto medido "
+                       "ni junto a Probe")
+        return r
+    prestado = not guion.startswith(os.path.abspath(FRONTEND))
     if shutil.which("node") is None:
         r.porque_no = "hace falta node"
         return r
-    cod, salida, err = _correr(["node", guion, os.path.join(FRONTEND, "src")],
-                               cwd=FRONTEND)
+    fuentes = os.path.join(FRONTEND, "src")
+    if not os.path.isdir(fuentes):
+        r.porque_no = f"no encuentro las fuentes en {fuentes}"
+        return r
+    cod, salida, err = _correr(["node", guion, fuentes],
+                               cwd=os.path.dirname(os.path.dirname(guion)))
     try:
         datos = json.loads(salida)
     except json.JSONDecodeError:
@@ -221,14 +378,29 @@ def pregunta_frontend() -> Respuesta:
         return r
     sim = sorted({x["fichero"] for x in datos.get("simulaciones", [])})
     lit = sorted({x["fichero"] for x in datos.get("literales", [])})
+    examinados = datos.get("ficheros_de_panel_examinados")
+    carpetas = ", ".join(datos.get("carpetas_de_panel", []))
+    if examinados == 0:
+        # «0 componentes con datos escritos dentro» cuando no se examinó ningún
+        # componente no es un aprobado: es que la herramienta buscó donde este
+        # proyecto no guarda su interfaz.
+        r.porque_no = (f"el medidor busca paneles en {carpetas} y este proyecto "
+                       f"no tiene ninguno ahí, así que no examinó ni un "
+                       f"fichero. El «0» que saldría no sería un aprobado.")
+        return r
     r.contestada = True
-    r.cifras = {"ficheros_que_generan_cifras_al_azar": len(sim),
+    r.cifras = {"ficheros_de_panel_examinados": examinados,
+                "ficheros_que_generan_cifras_al_azar": len(sim),
                 "componentes_con_datos_escritos_dentro": len(lit),
                 "llamadas_que_no_pude_resolver": len(datos.get("sin_resolver", []))}
     r.hallazgos = ([f"{f}: genera cifras con Math.random()" for f in sim] +
                    [f"{f}: pinta una lista de datos escrita dentro" for f in lit])
     r.titular = (f"{len(sim)} fichero(s) generan cifras al azar en el "
                  f"navegador; {len(lit)} pintan datos escritos dentro")
+    if prestado:
+        # Decirlo importa: el medidor prestado trae sus propios criterios de
+        # «componente» y «vista», que pueden no encajar con otro proyecto.
+        r.cifras["medidor_prestado_de"] = os.path.relpath(guion, AQUI)
     return r
 
 
@@ -238,6 +410,15 @@ def informar(respuestas: list[Respuesta]) -> None:
     print("=" * 78)
     print("MWH-PROBE")
     print("=" * 78)
+    print(f"proyecto : {PROYECTO}")
+    print(f"backend  : {BACKEND or 'no encontrado'}")
+    if FRONTEND:
+        print(f"frontend : {FRONTEND}")
+    elif FRONTEND_AMBIGUO:
+        print(f"frontend : SIN DECIDIR entre "
+              f"{', '.join(os.path.basename(d) for d in FRONTEND_AMBIGUO)}")
+    else:
+        print("frontend : no encontrado")
     print("Cuatro preguntas que se contestan leyendo el código. Sin nota "
           "global: una")
     print("cifra única invita a promediar lo medido con lo no medido, y así se "
@@ -280,13 +461,31 @@ def main() -> int:
         description="Nota del proyecto que se puede reproducir: cuatro "
                     "preguntas, cada cifra con su denominador, sin nota "
                     "global.")
+    ap.add_argument("--proyecto", default=AQUI, metavar="RUTA",
+                    help="raíz del proyecto a medir (def.: donde vive Probe)")
+    ap.add_argument("--backend", default=None, metavar="RUTA",
+                    help="árbol Python que sirve rutas, si el descubrimiento "
+                         "falla")
+    ap.add_argument("--frontend", default=None, metavar="RUTA",
+                    help="proyecto de node con las fuentes de la interfaz")
     ap.add_argument("--bateria", default=None, metavar="RUTA",
                     help="ruta de reachability.py de la batería de auditoría")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    if not os.path.isdir(BACKEND):
-        print(f"no encuentro el backend en {BACKEND}", file=sys.stderr)
+    raiz = os.path.abspath(args.proyecto)
+    if not os.path.isdir(raiz):
+        print(f"no existe el proyecto: {raiz}", file=sys.stderr)
+        return 3
+
+    global BACKEND, FRONTEND, PROYECTO
+    PROYECTO = raiz
+    BACKEND = (os.path.abspath(args.backend) if args.backend
+               else descubrir_backend(raiz))
+    FRONTEND = (os.path.abspath(args.frontend) if args.frontend
+                else descubrir_frontend(raiz))
+    if args.backend and not os.path.isdir(BACKEND):
+        print(f"--backend no es un directorio: {BACKEND}", file=sys.stderr)
         return 3
 
     respuestas = [pregunta_alcanzabilidad(args.bateria), pregunta_origen(),

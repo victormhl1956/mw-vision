@@ -197,6 +197,12 @@ for (const ruta of ficheros(raiz)) {
 // ───────────────────────────────────────────────────────────────────────────
 
 const literales = [];
+// Cuántos ficheros entraron de verdad en el filtro de componentes y vistas.
+// Sin esto, medir un proyecto cuya interfaz NO está en components/ ni views/
+// devuelve «0 literales», que se lee como un aprobado y es en realidad «no
+// miré en ningún sitio». Exactamente el falso verde que persigue este trabajo,
+// cometido al hacer la herramienta portable.
+let ficherosDePanel = 0;
 // Simulación en el propio navegador: el botón «refrescar» del panel de
 // seguridad sumaba amenazas detectadas con Math.random(). Es la misma categoría
 // que el simulador del backend, en el otro lado del cable, y no se ve midiendo
@@ -208,6 +214,7 @@ for (const ruta of ficheros(raiz)) {
   // Sólo donde hay paneles: componentes y vistas. Un literal en services/ o
   // stores/ es casi siempre configuración o un valor inicial.
   if (!/^(components|views)\//.test(rel)) continue;
+  ficherosDePanel += 1;
 
   const texto = readFileSync(ruta, "utf8");
   const sf = ts.createSourceFile(ruta, texto, ts.ScriptTarget.Latest, true,
@@ -278,4 +285,6 @@ console.log(JSON.stringify({
   literales: literales.map((l) => ({ ...l,
     el_fichero_pide_datos: importaApi.get(l.fichero) === true })),
   simulaciones,
+  ficheros_de_panel_examinados: ficherosDePanel,
+  carpetas_de_panel: ["components/", "views/"],
 }, null, 2));

@@ -113,3 +113,58 @@ def test_probe_dice_lo_que_no_mira():
     """Un informe sin alcance declarado es la mitad de un informe."""
     p = _correr()
     assert "Probe NO mira" in p.stdout, p.stdout[-400:]
+
+
+# ── Portabilidad: Probe tiene que poder medir otro proyecto, o decir que no ──
+
+def test_probe_apuntado_a_otro_proyecto_no_inventa_veredicto(tmp_path):
+    """
+    La prueba que de verdad importa para usar Probe en VeraVadis o en los blogs.
+    Un proyecto vacío no tiene nada que medir, y eso NO puede salir como un
+    aprobado: las cuatro preguntas tienen que quedar sin contestar.
+    """
+    p = _correr("--proyecto", str(tmp_path))
+    assert "SIN CONTESTAR" in p.stdout, p.stdout[:600]
+    assert "CONTESTADA]" not in p.stdout.replace("SIN CONTESTAR]", ""), (
+        "Probe contestó alguna pregunta sobre un proyecto vacío")
+    assert p.returncode == 2, (
+        f"salió con {p.returncode}: un proyecto donde no se midió nada no "
+        f"puede salir con 0")
+
+
+def test_el_descubrimiento_no_elige_entre_varios_frontends():
+    """
+    La lección de los sensores, aplicada a Probe. mw-vision tiene DOS proyectos
+    de node con package.json y src/ — CLAUDE_DESKTOP_REVIEW y mw-vision-app — y
+    mi primera versión se quedaba con el primero por orden alfabético, que es
+    inventar un criterio. Ahora declara la duda y nombra las candidatas.
+    """
+    p = _correr()  # sin --frontend
+    assert "SIN DECIDIR" in p.stdout, p.stdout[:500]
+    assert "mw-vision-app" in p.stdout
+    # Y con la respuesta dada, mide.
+    q = _correr("--frontend", os.path.join(RAIZ, "mw-vision-app"))
+    assert "SIN DECIDIR" not in q.stdout
+    assert q.stdout.count("[CONTESTADA]") == 4, q.stdout[:800]
+
+
+def test_un_filtro_que_no_examino_nada_no_es_un_aprobado(tmp_path):
+    """
+    El falso verde más sutil de hacer una herramienta portable: el medidor del
+    frontend busca paneles en components/ y views/. Un proyecto que guarde su
+    interfaz en otro sitio daría «0 ficheros inventan cifras», que se lee como
+    un aprobado y significa «no miré en ningún sitio».
+    """
+    (tmp_path / "package.json").write_text('{"name":"x"}', encoding="utf-8")
+    src = tmp_path / "src"
+    src.mkdir()
+    # Un componente fuera de components/ y views/, con una lista de datos
+    # dentro: si el filtro lo ignorara en silencio, saldría un 0 limpio.
+    (src / "Panel.tsx").write_text(
+        "export const filas = [{a:1},{a:2}]\nexport default () => null\n",
+        encoding="utf-8")
+    p = _correr("--proyecto", str(tmp_path), "--frontend", str(tmp_path))
+    bloque = p.stdout.split("¿Se inventa")[-1]
+    assert "SIN CONTESTAR" in p.stdout and "no examinó ni un" in bloque, (
+        "Probe dio por buena una medición que no examinó ningún fichero:\n" +
+        bloque[:500])
