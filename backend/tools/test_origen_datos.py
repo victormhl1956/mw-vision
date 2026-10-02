@@ -120,6 +120,24 @@ def needs():
     return []
 ''', {"/api/needs": "CONSTANTE"}),
 
+    # ── leer configuración NO es consultar un dato ─────────────────────────
+    # Añadir una etiqueta honesta («¿esto es simulado?») hizo que cuatro rutas
+    # pasaran a CONSULTA sólo por llamar a os.getenv, y la puerta subió 13
+    # puntos sin que nada se cableara. Una medición que mejora porque se le
+    # añade una etiqueta no mide nada.
+    "configuracion_no_es_dato.py": ('''
+import os
+from fastapi import FastAPI
+app = FastAPI()
+
+BANDERAS = {"modo": "demo"}
+
+@app.get("/api/bandera")
+def bandera():
+    return {**BANDERAS, "simulado": os.getenv("MW_SIMULADOR") == "on",
+            "ruta": os.path.join("a", "b")}
+''', {"/api/bandera": "MEMORIA SEMILLA"}),
+
     # ── estado en memoria: vivo, semilla, y el literal con valores vivos ───
     "memoria_viva.py": ('''
 from fastapi import FastAPI

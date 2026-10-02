@@ -99,7 +99,16 @@ SENALES_CONSULTA = {
 # Nombres cuyo solo uso ya implica dato vivo.
 MODULOS_CONSULTA = {"sqlite3", "psycopg2", "pymysql", "sqlalchemy", "httpx",
                     "requests", "aiohttp", "urllib", "subprocess", "psutil",
-                    "redis", "pymongo", "os", "pathlib", "shutil", "socket"}
+                    "redis", "pymongo", "pathlib", "shutil", "socket"}
+# `os` entero estaba aquí, y eso hizo que cuatro rutas pasaran a CONSULTA sólo
+# por leer una variable de entorno: la puerta subió de 52% a 65% sin que nada
+# se cableara. Leer configuración NO es consultar un dato — os.path.join
+# tampoco—. Los usos de os que sí son fuente de verdad (getsize, listdir,
+# walk, exists) están nombrados uno a uno en SENALES_CONSULTA. Lo pilló el test
+# que exige que el comprobador siga pudiendo fallar.
+NUNCA_CONSULTA = {"getenv", "environ", "putenv", "setenv", "path", "sep",
+                  "join", "dirname", "basename", "abspath", "normpath",
+                  "splitext", "name", "getcwd"}
 
 # Las fronteras son (?<![A-Za-z0-9]) en vez de \b porque el dato de juguete
 # vive dentro de los nombres: _sample_metrics, FAKE_AGENTS, datos_demo. Con \b,
@@ -214,17 +223,24 @@ class Rastro(ast.NodeVisitor):
                 # El verbo de un decorador de ruta no es una consulta: es la
                 # declaración. Sin esto, cualquier @router.get contaba como
                 # «llega a una fuente de verdad».
-                if not (f.attr.lower() in VERBOS and DECOR_RUTA.match(base or "")):
+                if f.attr in NUNCA_CONSULTA:
+                    pass
+                elif not (f.attr.lower() in VERBOS and DECOR_RUTA.match(base or "")):
                     self.consulta.append(
                         f"{base}.{f.attr}()" if base else f".{f.attr}()")
         elif isinstance(f, ast.Name):
-            if f.id in SENALES_CONSULTA:
+            if f.id in NUNCA_CONSULTA:
+                self.llamadas_locales.append(f.id)
+            elif f.id in SENALES_CONSULTA:
                 self.consulta.append(f"{f.id}()")
             else:
                 self.llamadas_locales.append(f.id)
         self.generic_visit(n)
 
     def visit_Attribute(self, n: ast.Attribute) -> None:
+        if n.attr in NUNCA_CONSULTA:
+            self.generic_visit(n)
+            return
         if isinstance(n.value, ast.Name) and n.value.id in MODULOS_CONSULTA:
             self.consulta.append(f"{n.value.id}.{n.attr}")
         self.generic_visit(n)

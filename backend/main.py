@@ -36,6 +36,9 @@ import sys
 import os
 from pathlib import Path
 
+from modules.crew.simulacion import (
+    simulacion_activa as _simulacion_activa)
+
 # Add routers + modules to path
 _BACKEND_DIR = Path(__file__).parent
 if str(_BACKEND_DIR) not in sys.path:
@@ -346,9 +349,16 @@ async def lifespan(app: FastAPI):
     from modules.agents.trust_gate import exigir_agentes_confiables
     exigir_agentes_confiables(agents)
 
-    task = asyncio.create_task(simulate_agent_updates())
+    # Mismo interruptor que en core/app.py: este fichero tiene su PROPIA copia
+    # de simulate_agent_updates(), así que apagarlo en un sitio no lo apagaba
+    # en el otro. Ver modules/crew/simulacion.py.
+    from modules.crew.simulacion import aviso_simulacion, simulacion_activa
+    print(aviso_simulacion())
+    task = (asyncio.create_task(simulate_agent_updates())
+            if simulacion_activa() else None)
     yield
-    task.cancel()
+    if task is not None:
+        task.cancel()
 
 app = FastAPI(
     title="MW-Vision Backend",
@@ -428,6 +438,9 @@ async def health_check():
         "connected_clients": len(manager.active_connections),
         "crew_running": crew_state.is_running,
         "total_cost": crew_state.total_cost,
+        # Si el coste lo genera un simulador, se dice: un número plausible es
+        # indistinguible de uno medido.
+        "datos_simulados": _simulacion_activa(),
         "uptime_seconds": round(uptime, 2)
     }
 
@@ -440,7 +453,8 @@ async def get_agents():
 
 @app.get("/api/crew")
 async def get_crew_state():
-    return crew_state.model_dump()
+    return {**crew_state.model_dump(),
+            "datos_simulados": _simulacion_activa()}
 
 @app.get("/api/security")
 async def get_security_metrics():

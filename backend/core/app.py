@@ -9,7 +9,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from modules.security import RateLimitMiddleware, SecurityHeadersMiddleware
-from modules.crew import simulate_agent_updates
+from modules.crew import (aviso_simulacion, simulacion_activa,
+                          simulate_agent_updates)
 
 
 @asynccontextmanager
@@ -25,9 +26,18 @@ async def lifespan(app: FastAPI):
     from modules.agents.trust_gate import exigir_agentes_confiables
     exigir_agentes_confiables(agents)
 
-    task = asyncio.create_task(simulate_agent_updates())
+    # El simulador NO arranca por defecto. Generaba el coste con
+    # random.randint() y lo escribía en crew_state.total_cost, que se compara
+    # contra budget_limit para parar la tripulación: un dado moviendo una
+    # guarda de presupuesto, en los dos puntos de entrada, en producción.
+    # Apagado, los contadores quedan a cero, que es la verdad. MW_SIMULADOR=on
+    # lo devuelve para una demo, y entonces /api/crew lo dice.
+    print(aviso_simulacion())
+    task = (asyncio.create_task(simulate_agent_updates())
+            if simulacion_activa() else None)
     yield
-    task.cancel()
+    if task is not None:
+        task.cancel()
 
 
 def create_app() -> FastAPI:
