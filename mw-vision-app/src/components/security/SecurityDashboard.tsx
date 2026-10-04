@@ -95,6 +95,13 @@ export default function SecurityDashboard({ isOpen, onClose }: SecurityDashboard
   }, [])
 
   useEffect(() => {
+    if (!isOpen) return
+    const alPulsar = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', alPulsar)
+    return () => window.removeEventListener('keydown', alPulsar)
+  }, [isOpen, onClose])
+
+  useEffect(() => {
     if (isOpen) void cargar()
   }, [isOpen, cargar])
 
@@ -126,7 +133,7 @@ export default function SecurityDashboard({ isOpen, onClose }: SecurityDashboard
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-osint-text-dim hover:text-osint-text transition-colors">✕</button>
+          <button onClick={onClose} aria-label="Cerrar el panel de seguridad" title="Cerrar (Esc)" className="text-osint-text-dim hover:text-osint-text transition-colors">✕</button>
         </div>
 
         {/* Error: nunca se cae a un verde por defecto */}

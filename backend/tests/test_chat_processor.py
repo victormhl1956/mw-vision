@@ -129,6 +129,34 @@ def test_usa_el_parser_de_la_plataforma_declarada():
     assert [m.role for m in conv.messages] == ["user", "assistant"]
 
 
+def test_la_exportacion_real_de_claude_conserva_quien_habla():
+    """
+    El formato REAL de una exportación de Claude: `sender` y `text`, con el
+    texto repetido en bloques de `content`, y sin campo `role`.
+
+    La prueba de arriba usa `role`/`content`, un formato que Claude no
+    exporta, y por eso pasaba mientras cada mensaje real se guardaba como
+    «unknown». Encontrado guardando una exportación desde la pestaña Memoria
+    en un navegador, el 2026-10-04.
+    """
+    from modules.chat_processor.platforms import parse_conversation
+    conv = parse_conversation(content=json.dumps({
+        "uuid": "11111111-2222-3333-4444-555555555555",
+        "name": "Conversación real",
+        "chat_messages": [
+            {"uuid": "a1", "sender": "human", "text": "pregunta",
+             "content": [{"type": "text", "text": "pregunta"}]},
+            {"uuid": "a2", "sender": "assistant", "text": "respuesta",
+             "content": [{"type": "text", "text": "respuesta"}]},
+            # Exportaciones antiguas: sólo `text`, sin bloques.
+            {"uuid": "a3", "sender": "human", "text": "seguimiento"},
+        ]}))
+    assert conv.platform == "claude"
+    assert [m.role for m in conv.messages] == ["user", "assistant", "user"]
+    assert [m.content for m in conv.messages] == [
+        "pregunta", "respuesta", "seguimiento"]
+
+
 def test_detecta_sola_cuando_no_se_declara_la_plataforma():
     from modules.chat_processor.platforms import parse_conversation
     conv = parse_conversation(content=json.dumps({

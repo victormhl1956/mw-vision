@@ -74,6 +74,9 @@ def _parse_chatgpt(content: Any, source_url: str = None) -> ParsedConversation:
     )
 
 
+_ROL_DE_SENDER = {"human": "user", "user": "user", "assistant": "assistant"}
+
+
 def _parse_claude(content: Any, source_url: str = None) -> ParsedConversation:
     messages: List[ParsedMessage] = []
     title = None
@@ -86,7 +89,13 @@ def _parse_claude(content: Any, source_url: str = None) -> ParsedConversation:
         title = content.get("name") or content.get("title")
         raw_msgs = content.get("chat_messages", content.get("messages", []))
         for msg in raw_msgs:
-            role = msg.get("role", "unknown")
+            # Las exportaciones reales de Claude no traen `role`: traen
+            # `sender` ("human" / "assistant") y el texto en `text` y en
+            # bloques de `content`. Leer sólo `role` guardaba TODOS los
+            # mensajes como "unknown": la memoria perdía quién dijo qué, y
+            # nada fallaba, porque la prueba usaba un formato inventado.
+            role = msg.get("role") or _ROL_DE_SENDER.get(
+                str(msg.get("sender", "")).lower(), "unknown")
             raw_content = msg.get("content", "")
             if isinstance(raw_content, list):
                 text = " ".join(
@@ -95,6 +104,8 @@ def _parse_claude(content: Any, source_url: str = None) -> ParsedConversation:
                 ).strip()
             else:
                 text = str(raw_content).strip()
+            if not text:
+                text = str(msg.get("text", "")).strip()
             if not text:
                 continue
             messages.append(ParsedMessage(role=role, content=text))
