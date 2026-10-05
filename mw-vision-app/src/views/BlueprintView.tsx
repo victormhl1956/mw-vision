@@ -9,7 +9,10 @@ interface FileItem {
   hydraProtected?: boolean
 }
 
-const initialMockFiles: FileItem[] = [
+// Lista de ejemplo. Se queda porque la vista no tiene de dónde sacar ficheros
+// todavía, pero la interfaz lo DICE: ver el aviso de arriba del panel. Un dato
+// de ejemplo sin etiqueta se lee como un inventario real.
+const FICHEROS_DE_EJEMPLO: FileItem[] = [
   { path: 'src/auth/login.ts', classification: 'proprietary', lines: 234, hydraProtected: false },
   { path: 'src/utils/helpers.ts', classification: 'public', lines: 89 },
   { path: 'src/api/endpoints.ts', classification: 'proprietary', lines: 456, hydraProtected: false },
@@ -17,10 +20,14 @@ const initialMockFiles: FileItem[] = [
 ]
 
 export default function BlueprintView() {
-  const [files, setFiles] = useState<FileItem[]>(initialMockFiles)
+  const [files] = useState<FileItem[]>(FICHEROS_DE_EJEMPLO)
   const [repoUrl, setRepoUrl] = useState('')
-  const [isImporting, setIsImporting] = useState(false)
-  const [isHydraProcessing, setIsHydraProcessing] = useState(false)
+  // Nada enciende estos dos, porque esta vista no procesa nada. Antes los
+  // encendía un `setTimeout` que luego anunciaba un éxito que no había ocurrido.
+  // Se quedan como constantes para que el tipado impida volver a engancharlos a
+  // una espera falsa sin pensarlo.
+  const isImporting = false
+  const isHydraProcessing = false
   const { showToast } = useToast()
 
   const proprietaryCount = files.filter(f => f.classification === 'proprietary').length
@@ -40,24 +47,20 @@ export default function BlueprintView() {
       return
     }
 
-    setIsImporting(true)
-    showToast('info', 'Cloning repository and analyzing code...')
-
-    // Simulate import process
-    setTimeout(() => {
-      // Simulate adding new files from the imported repo
-      const newFiles: FileItem[] = [
-        { path: 'src/config/database.ts', classification: 'proprietary', lines: 156, hydraProtected: false },
-        { path: 'src/models/User.ts', classification: 'proprietary', lines: 203, hydraProtected: false },
-        { path: 'src/utils/validators.ts', classification: 'public', lines: 124 },
-        { path: 'README.md', classification: 'public', lines: 45 },
-      ]
-
-      setFiles([...files, ...newFiles])
-      setIsImporting(false)
-      showToast('success', `Imported ${newFiles.length} files from ${repoUrl.split('/').pop()}`)
-      setRepoUrl('')
-    }, 3000)
+    // Aquí había un `setTimeout` de 3 segundos que añadía cuatro ficheros
+    // inventados y anunciaba «Imported 4 files from …». El botón de importar no
+    // importaba nada y lo celebraba: eso no es una maqueta incompleta, es un
+    // éxito falso, y quien lo ve actúa confiando en él.
+    //
+    // Mientras no haya backend que clone y analice el repositorio, lo que toca
+    // es decirlo. La validación del URL de arriba sí es real y se queda.
+    showToast(
+      'warning',
+      'La importación desde GitHub no está conectada todavía: no se ha ' +
+      'importado nada. El URL tiene el formato correcto.',
+      7000,
+    )
+    setRepoUrl('')
   }
 
   const handleHydraProtection = () => {
@@ -70,23 +73,45 @@ export default function BlueprintView() {
       return
     }
 
-    setIsHydraProcessing(true)
-    showToast('info', `Applying Hydra Protocol v2 to ${unprotectedProprietary.length} files...`)
-
-    // Simulate Hydra protection process
-    setTimeout(() => {
-      setFiles(files.map(f => 
-        f.classification === 'proprietary' 
-          ? { ...f, hydraProtected: true }
-          : f
-      ))
-      setIsHydraProcessing(false)
-      showToast('success', `Protected ${unprotectedProprietary.length} proprietary files with Hydra Protocol`)
-    }, 2500)
+    // Aquí había un `setTimeout` de 2,5 segundos que marcaba todos los ficheros
+    // propietarios como protegidos y anunciaba «Protected N proprietary files
+    // with Hydra Protocol». No protegía nada.
+    //
+    // De todos los éxitos falsos de esta interfaz, este es el peor: el argumento
+    // del producto es proteger código propietario, y quien ve ese mensaje deja
+    // de preocuparse por unos ficheros que siguen expuestos. Un panel que miente
+    // sobre un número molesta; un botón que miente sobre haber protegido algo
+    // hace daño.
+    showToast(
+      'warning',
+      `Hydra Protocol no está conectado desde esta vista: los ` +
+      `${unprotectedProprietary.length} ficheros propietarios NO se han ` +
+      `protegido.`,
+      7000,
+    )
   }
 
   return (
     <div className="space-y-6">
+      {/* El aviso va ARRIBA y siempre visible. Los cuatro recuentos de abajo
+          salen de una lista de ejemplo, y sin esta línea se leen como un
+          inventario real del repositorio. */}
+      <div className="glass-panel p-4 rounded-lg border border-osint-yellow/40 bg-osint-yellow/5">
+        <div className="flex items-start gap-3">
+          <Shield className="w-5 h-5 text-osint-yellow mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <div className="font-semibold text-osint-yellow">
+              Vista de ejemplo: no está conectada a ningún repositorio
+            </div>
+            <div className="text-osint-text-dim mt-1">
+              Los {files.length} ficheros de abajo son datos de muestra. Importar
+              desde GitHub y aplicar Hydra Protocol todavía no hacen nada, y lo
+              dicen al pulsarlos en vez de anunciar un éxito que no ha ocurrido.
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Overview Stats */}
       <div className="grid grid-cols-4 gap-4">
         <div className="glass-panel p-4 rounded-lg">

@@ -36,6 +36,9 @@ import sys
 import os
 from pathlib import Path
 
+from modules.crew.simulacion import (
+    simulacion_activa as _simulacion_activa)
+
 # Add routers + modules to path
 _BACKEND_DIR = Path(__file__).parent
 if str(_BACKEND_DIR) not in sys.path:
@@ -44,17 +47,29 @@ if str(_BACKEND_DIR) not in sys.path:
 _yt_router = None
 _chat_router = None
 
+# La causa de cada subsistema que no cargó, no sólo el hecho. Durante meses el
+# chat processor estuvo caído porque platforms.py no definía PLATFORM_REGISTRY:
+# el `except Exception` se lo tragaba, la razón se iba a la salida estándar del
+# proceso y `/` sólo decía `chat_processor: false`. Para saber por qué había que
+# tener el terminal delante. Ahora viaja en la respuesta de `/` y de `/health`.
+_ecosystem_errors: Dict[str, str] = {}
+
 try:
     from routers.yt_processor import router as _yt_router_obj
     _yt_router = _yt_router_obj
 except Exception as _e:
+    _ecosystem_errors["yt_processor"] = f"{type(_e).__name__}: {_e}"
     print(f"[MW-Vision] YT Processor router not loaded: {_e}")
 
 try:
     from modules.chat_processor.router import router as _chat_router_obj
     _chat_router = _chat_router_obj
 except Exception as _e:
+    _ecosystem_errors["chat_processor"] = f"{type(_e).__name__}: {_e}"
     print(f"[MW-Vision] Chat Processor router not loaded: {_e}")
+
+# Close code 1008 = policy violation, enviado antes de aceptar el handshake.
+_WS_POLICY_VIOLATION = 1008
 
 # ============================================================================
 # Security: Rate Limiting
@@ -145,6 +160,12 @@ class AgentModel(BaseModel):
     id: str
     name: str
     model: str
+    # Qué clase de datos maneja este agente. Declarado, no deducido: la política
+    # de confianza de Hydra sabe qué modelo vale para cada nivel, pero nadie
+    # puede adivinar el nivel leyendo el nombre del agente. SAFE por omisión
+    # porque es lo que esta tabla ya implica; poner "SENSITIVE" aquí activa la
+    # restricción de VULN-007 sobre ese agente en el arranque.
+    sensitivity: str = "SAFE"
     status: AgentStatus = AgentStatus.IDLE
     cost: float = 0.0
     tasks_completed: int = 0
@@ -320,9 +341,24 @@ async def simulate_agent_updates():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background simulation task."""
-    task = asyncio.create_task(simulate_agent_updates())
+    # La política de confianza de Hydra, aplicada antes de atender nada. El
+    # módulo que la codifica (src/hydra/trust_manager.py) existía desde
+    # feb-2026 y nadie lo importaba, así que VULN-007 y VULN-010 figuraban
+    # corregidas sin ejecutarse nunca. tests/test_security_wiring.py falla si
+    # se quita esta llamada.
+    from modules.agents.trust_gate import exigir_agentes_confiables
+    exigir_agentes_confiables(agents)
+
+    # Mismo interruptor que en core/app.py: este fichero tiene su PROPIA copia
+    # de simulate_agent_updates(), así que apagarlo en un sitio no lo apagaba
+    # en el otro. Ver modules/crew/simulacion.py.
+    from modules.crew.simulacion import aviso_simulacion, simulacion_activa
+    print(aviso_simulacion())
+    task = (asyncio.create_task(simulate_agent_updates())
+            if simulacion_activa() else None)
     yield
-    task.cancel()
+    if task is not None:
+        task.cancel()
 
 app = FastAPI(
     title="MW-Vision Backend",
@@ -383,6 +419,8 @@ async def root():
         "ecosystem": {
             "yt_processor": _yt_router is not None,
             "chat_processor": _chat_router is not None,
+            # Por qué falta el que falta. Sin esto hacía falta el terminal.
+            "errors": dict(_ecosystem_errors),
         }
     }
 
@@ -390,12 +428,19 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     uptime = (datetime.now() - datetime.fromisoformat(security_metrics["start_time"])).total_seconds()
+    # "healthy" era un literal: un subsistema entero podía estar caído y la
+    # respuesta no cambiaba. Un monitor que lea esto tiene que poder enterarse.
+    caidos = sorted(_ecosystem_errors)
     return {
-        "status": "healthy",
+        "status": "degraded" if caidos else "healthy",
+        "degraded_subsystems": caidos,
         "timestamp": datetime.now().isoformat(),
         "connected_clients": len(manager.active_connections),
         "crew_running": crew_state.is_running,
         "total_cost": crew_state.total_cost,
+        # Si el coste lo genera un simulador, se dice: un número plausible es
+        # indistinguible de uno medido.
+        "datos_simulados": _simulacion_activa(),
         "uptime_seconds": round(uptime, 2)
     }
 
@@ -408,15 +453,32 @@ async def get_agents():
 
 @app.get("/api/crew")
 async def get_crew_state():
-    return crew_state.model_dump()
+    return {**crew_state.model_dump(),
+            "datos_simulados": _simulacion_activa()}
 
 @app.get("/api/security")
 async def get_security_metrics():
-    """Security metrics endpoint."""
+    """
+    Security metrics, plus what the application can prove about itself.
+
+    Ver modules/security/evidencia.py: el panel escrito a mano traía ocho
+    comprobaciones fijas en 'pass' y las siguió mostrando los ocho meses en que
+    el endpoint de WebSocket no autenticaba.
+    """
+    from modules.security.evidencia import evidencia_de_seguridad
+    from src.security.audit_logger import AuditLogger, get_audit_logger
     return {
+        "evidence": evidencia_de_seguridad(app),
         "security_metrics": security_metrics,
         "active_connections": len(manager.active_connections),
-        "per_ip_connections": dict(manager.max_connections_per_ip)
+        "per_ip_connections": dict(manager.max_connections_per_ip),
+        # El rastro de auditoría se instrumenta a sí mismo. Si no puede
+        # escribir, no tumba el servicio, pero el número de eventos perdidos
+        # tiene que ser visible o el silencio volvería a parecer normalidad.
+        "audit_trail": {
+            "directory": str(get_audit_logger().log_dir),
+            "write_failures": AuditLogger.write_failures,
+        },
     }
 
 # ============================================================================
@@ -427,7 +489,25 @@ async def get_security_metrics():
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint with security."""
     client_ip = websocket.client.host if websocket.client else "unknown"
-    
+
+    # Autentica ANTES de aceptar. Este archivo define su propio /ws y no incluye
+    # routers/websocket.py, así que la corrección del 2026-10-01 nunca llegó
+    # aquí: RUN-MW-VISION.bat arranca `uvicorn main:app` y este endpoint seguía
+    # atendiendo a cualquiera. Lo encontró el test que recorre el árbol buscando
+    # endpoints WebSocket sin verificador, no una lectura mía.
+    from src.security.audit_logger import get_audit_logger
+    from src.security.websocket_auth import get_authenticator
+
+    token = websocket.query_params.get("token", "")
+    autorizado = get_authenticator().verify_token(token)
+    get_audit_logger().log_websocket_connection(client_ip, autorizado)
+    if not autorizado:
+        security_metrics["rejected_connections"] = security_metrics.get(
+            "rejected_connections", 0) + 1
+        print(f"[WS] rejected unauthenticated connection from {client_ip}")
+        await websocket.close(code=_WS_POLICY_VIOLATION)
+        return
+
     # Connect with rate limiting per IP
     connected = await manager.connect(websocket, client_ip)
     if not connected:

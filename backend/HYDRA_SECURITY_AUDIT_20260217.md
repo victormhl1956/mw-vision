@@ -47,7 +47,7 @@ def verify_token(self, token: str) -> bool:
 - Signature: `HMAC-SHA256(secret_key, base64url(payload))`
 - `verify_token()` verifies signature via `hmac.compare_digest()` (timing-safe) and checks expiry.
 - Unknown tokens → `False`. Expired tokens → `False`. Tampered tokens → `False`.
-- `HYDRA_SECRET_KEY` env var required; warning emitted if not set.
+- `HYDRA_SECRET_KEY` env var required. **Corrected 2026-10-02:** this line used to read "warning emitted if not set", which was the whole problem — a warning in production goes nowhere, and the constructor minted an ephemeral per-process key, so tokens signed by one PM2 worker were rejected by another and the failures looked like network flakiness. The constructor now raises `RuntimeError` at startup if the key is missing, shorter than 32 characters, a known placeholder, or a short pattern repeated to reach the length. `HYDRA_ALLOW_WEAK_KEY=1` is the deliberate, awkward override for reproducing a report locally.
 
 **Test result:** `Short token rejected: True` (was `False` with old code)
 

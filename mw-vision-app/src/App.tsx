@@ -4,17 +4,18 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Activity, Network, Users, Box, Wifi, WifiOff, Zap, Shield, Play, Terminal } from 'lucide-react'
+import { Activity, Network, Users, Box, Wifi, WifiOff, Zap, Shield, Play, Terminal, Database } from 'lucide-react'
 import FlowView from './views/FlowView'
 import TeamView from './views/TeamView'
 import MissionLog from './views/MissionLog'
 import BlueprintView from './views/BlueprintView'
+import MemoriaView from './views/MemoriaView'
 import SecurityDashboard from './components/security/SecurityDashboard'
 import { useCrewStore } from './stores/crewStore'
 import { runTests, getTestSummary } from './services/browserInteractor'
 import { formatCost } from './utils/formatters'
 
-type ViewType = 'flow' | 'team' | 'mission' | 'blueprint'
+type ViewType = 'flow' | 'team' | 'mission' | 'blueprint' | 'memoria'
 
 interface TestSummary {
   total: number
@@ -76,6 +77,10 @@ function App() {
     { id: 'team' as ViewType, name: 'Team View', icon: Users },
     { id: 'mission' as ViewType, name: 'Mission Log', icon: Terminal },
     { id: 'blueprint' as ViewType, name: 'Blueprint View', icon: Box },
+    // La memoria del proyecto. El backend servía /api/chat/* con consultas de
+    // verdad y ninguna pestaña lo pedía: esta línea es lo que convierte una
+    // capacidad construida en una capacidad usada.
+    { id: 'memoria' as ViewType, name: 'Memoria', icon: Database },
   ]
 
   return (
@@ -168,6 +173,7 @@ function App() {
         {activeView === 'team' && <TeamView />}
         {activeView === 'mission' && <MissionLog />}
         {activeView === 'blueprint' && <BlueprintView />}
+        {activeView === 'memoria' && <MemoriaView />}
       </main>
     </div>
   )

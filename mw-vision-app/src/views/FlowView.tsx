@@ -16,8 +16,9 @@ export default function FlowView() {
     launchCrew,
     pauseCrew,
     resetCrew,
-    setEstimatedCost,
-    updateAgentCost
+    setEstimatedCost
+    // updateAgentCost ya no se usa aquí: el coste lo escribe el WebSocket
+    // cuando hay trabajo real, no esta vista inventándolo al lanzar.
   } = useCrewStore()
 
   const { showToast } = useToast()
@@ -34,22 +35,29 @@ export default function FlowView() {
     showToast('success', 'Canvas layout saved to browser storage.')
   }, [showToast])
 
-  // Calculate estimated cost based on current configuration
+  // El coste ESTIMADO, que es legítimo calcular aquí mientras se diga de dónde
+  // sale. Antes el comentario decía «Simulate cost calculation» y la pantalla
+  // sólo ponía «Estimated Cost»: una cifra sin supuesto a la vista se lee como
+  // una medida, y con ella se dispara el aviso de presupuesto.
+  //
+  // El supuesto es este, y ahora está escrito también en la interfaz: precios
+  // por mil tokens de una tabla local, y 100 mil tokens por agente y corrida.
+  // Los precios reales los sabe el API Manager; mientras esto no los lea, es
+  // una estimación de servilleta y hay que decirlo.
+  const PRECIOS_POR_MIL_TOKENS: Record<string, number> = {
+    'Claude 3.5 Sonnet': 0.015,
+    'DeepSeek Chat': 0.002,
+    'GPT-4o': 0.03,
+  }
+  const PRECIO_DESCONOCIDO = 0.01
+  const MILES_DE_TOKENS_POR_AGENTE = 100
+
   useEffect(() => {
-    // Simulate cost calculation: base cost per agent + model multiplier
-    const modelCosts: Record<string, number> = {
-      'Claude 3.5 Sonnet': 0.015,
-      'DeepSeek Chat': 0.002,
-      'GPT-4o': 0.03
-    }
-
-    const estimated = agents.reduce((sum, agent) => {
-      const baseCost = modelCosts[agent.model] || 0.01
-      // Estimate 1000 tokens per agent per run
-      return sum + (baseCost * 100) // Rough estimate
+    const estimado = agents.reduce((suma, agente) => {
+      const precio = PRECIOS_POR_MIL_TOKENS[agente.model] ?? PRECIO_DESCONOCIDO
+      return suma + precio * MILES_DE_TOKENS_POR_AGENTE
     }, 0)
-
-    setEstimatedCost(Number(estimated.toFixed(2)))
+    setEstimatedCost(Number(estimado.toFixed(2)))
   }, [agents, setEstimatedCost])
 
   const budgetWarning = estimatedCost > budgetLimit
@@ -60,15 +68,14 @@ export default function FlowView() {
     }
 
     launchCrew()
-    showToast('success', 'Crew launched successfully! All agents are now running.')
-
-    // Simulate cost accumulation
-    setTimeout(() => {
-      agents.forEach((agent) => {
-        const randomCost = Number((Math.random() * 2).toFixed(2))
-        updateAgentCost(agent.id, randomCost)
-      })
-    }, 2000)
+    showToast('success', 'Crew launched. Los costes reales llegarán por el WebSocket.')
+    // Aquí había un `setTimeout` que dos segundos después repartía
+    // `Math.random() * 2` como coste de cada agente. Era un SEGUNDO simulador,
+    // independiente del backend, así que apagar MW_SIMULADOR no lo apagaba: el
+    // número de gasto que se veía en pantalla lo inventaba el propio navegador.
+    //
+    // El coste llega por el WebSocket cuando hay trabajo real. Si no llega, se
+    // queda en cero, que es la verdad: no haber medido no es haber gastado.
   }
 
   const handlePause = () => {
@@ -119,7 +126,11 @@ export default function FlowView() {
             }`}>
             <DollarSign className={`w-5 h-5 ${budgetWarning ? 'text-osint-red' : 'text-osint-cyan'}`} />
             <div>
-              <div className="text-xs text-osint-text-dim">Estimated Cost</div>
+              <div className="text-xs text-osint-text-dim" title={
+                `Estimación, no medida: ${MILES_DE_TOKENS_POR_AGENTE} mil ` +
+                `tokens por agente a precios de una tabla local. El gasto real ` +
+                `lo sabe el API Manager.`
+              }>Coste estimado ·  supuesto</div>
               <div className={`text-lg font-bold font-mono ${budgetWarning ? 'text-osint-red' : 'text-osint-cyan'}`}>
                 {formatCost(estimatedCost)}
               </div>

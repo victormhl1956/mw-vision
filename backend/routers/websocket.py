@@ -10,15 +10,41 @@ from modules.websocket.handlers import handle_message
 from modules.agents.state import agents
 from modules.crew.state import crew_state
 from modules.security.metrics import security_metrics
+from src.security.audit_logger import get_audit_logger
+from src.security.websocket_auth import get_authenticator
 
 
 router = APIRouter()
+
+# Close code 1008 = policy violation. Sent before accepting the handshake, so an
+# unauthenticated client never reaches the application protocol.
+_WS_POLICY_VIOLATION = 1008
 
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint with security."""
     client_ip = websocket.client.host if websocket.client else "unknown"
+
+    # Authenticate BEFORE accepting. This endpoint served any connection for
+    # months while a correct HMAC verifier sat unimported in
+    # src/security/websocket_auth.py: the fix existed and was never wired. The
+    # server binds 0.0.0.0, so that was open to the whole tailnet, not just
+    # localhost. tests/test_websocket_auth_wiring.py fails if this is undone.
+    token = websocket.query_params.get("token", "")
+    autorizado = get_authenticator().verify_token(token)
+
+    # El veredicto va al registro de auditoría en ambas ramas. La métrica en
+    # memoria muere con el proceso: si el agujero se reabre, sin esto nadie se
+    # enteraría. Registrar sólo los rechazos tampoco sirve — un archivo vacío
+    # sería indistinguible de un servidor que nadie usa.
+    get_audit_logger().log_websocket_connection(client_ip, autorizado)
+
+    if not autorizado:
+        security_metrics.increment("rejected_connections")
+        print(f"[WS] rejected unauthenticated connection from {client_ip}")
+        await websocket.close(code=_WS_POLICY_VIOLATION)
+        return
 
     # Connect with rate limiting per IP
     connected = await manager.connect(websocket, client_ip)

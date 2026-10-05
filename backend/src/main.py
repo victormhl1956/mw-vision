@@ -152,6 +152,11 @@ async def simulate_agent_activity():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    # Tercer punto de entrada, misma política: sus agentes también incluyen
+    # deepseek-chat, que es UNTRUSTED.
+    from modules.agents.trust_gate import exigir_agentes_confiables
+    exigir_agentes_confiables(agents)
+
     task = asyncio.create_task(simulate_agent_activity())
     print("[Backend] Background task started")
     yield
@@ -283,10 +288,31 @@ async def get_stats():
         "allSonnetCost": round(all_sonnet_cost, 4)
     }
 
+# Close code 1008 = policy violation, enviado antes de aceptar el handshake.
+_WS_POLICY_VIOLATION = 1008
+
+
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket connection for real-time updates"""
+    # Este archivo es el tercer punto de entrada del backend y nada lo arranca
+    # hoy, pero su /ws aceptaba cualquier conexión: exactamente el agujero que
+    # se cerró en routers/websocket.py el 2026-10-01, intacto aquí. Apuntar
+    # uvicorn a src.main:app lo habría reabierto entero. Un endpoint sin
+    # autenticar en el árbol es un arma cargada, la arranque alguien o no.
+    from src.security.audit_logger import get_audit_logger
+    from src.security.websocket_auth import get_authenticator
+
+    cliente_ip = websocket.client.host if websocket.client else "unknown"
+    token = websocket.query_params.get("token", "")
+    autorizado = get_authenticator().verify_token(token)
+    get_audit_logger().log_websocket_connection(cliente_ip, autorizado)
+    if not autorizado:
+        print(f"[WebSocket] rejected unauthenticated connection from {cliente_ip}")
+        await websocket.close(code=_WS_POLICY_VIOLATION)
+        return
+
     await manager.connect(websocket)
 
     # Send initial state

@@ -50,3 +50,8 @@ vite.config.ts.timestamp-*
 
 # TypeScript
 *.tsbuildinfo
+# Rastro de auditoría que escribe src/security/audit_logger.py en ejecución
+backend/logs/
+
+# Base de datos del chat processor, creada en ejecución por su init_db
+backend/chat_processor.db

@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from modules.websocket.manager import manager
 from modules.crew.state import crew_state
+from modules.crew.simulacion import simulacion_activa
 from modules.security.metrics import security_metrics
 
 
@@ -115,5 +116,8 @@ async def health_check():
         "connected_clients": manager.get_connection_count(),
         "crew_running": crew_state.is_running,
         "total_cost": crew_state.total_cost,
+        # Si el coste lo genera un simulador, un monitor que lea esto tiene que
+        # poder enterarse sin mirar el código.
+        "datos_simulados": simulacion_activa(),
         "uptime_seconds": round(uptime, 2)
     }

@@ -10,6 +10,7 @@
  */
 
 import { create } from 'zustand'
+import { hasWsToken, wsUrl } from '../services/wsUrl'
 import { api, type Agent as ApiAgent } from '../services/api'
 
 // ============================================================================
@@ -90,19 +91,48 @@ export const useCrewStore = create<CrewState>((set, get) => ({
   init: async () => {
     try {
       set({ connectionStatus: 'connecting' })
-      const agents = await api.getAgents()
-      const stats = await api.getStats()
 
-      set({
-        agents,
-        totalCost: stats.totalCost,
-        connectionStatus: 'connected'
-      })
+      // La siembra REST y el WebSocket son independientes, y aquí no lo eran:
+      // `getStats()` iba primero, /api/stats da 404 en el entrypoint que
+      // arranca PM2 —vive sólo en src/main.py— y la excepción saltaba al catch
+      // de abajo, así que el WebSocket NO LLEGABA A CREARSE. La pantalla decía
+      // «WebSocket: Connection Error» y la causa era un 404 de otra ruta.
+      //
+      // Y la segunda mitad del arreglo, que ayer dejé como deuda: la llamada a
+      // /api/stats SOBRABA. Lo único que se leía de su respuesta era
+      // `totalCost`, y ese número es `crew_state.total_cost`, que
+      // routers/agents.py ya devuelve como `total_cost` en la MISMA petición
+      // que trae los agentes — una ruta que el entrypoint de producción sí
+      // sirve. Los otros cuatro campos de `Stats` no los leía nadie, y dos de
+      // ellos (`savings`, `allSonnetCost`) se calculaban contra un
+      // `avg_sonnet_cost = 0.01` escrito a mano: un ahorro inventado contra un
+      // precio inventado. Registrar /api/stats en producción para callar un 404
+      // habría sido meter dato falso donde no hacía falta ninguno.
+      //
+      // Cada fallo se cuenta por separado y ninguno impide al otro. Es el mismo
+      // criterio que /health: degradado, y diciendo qué parte.
+      try {
+        const { agentes, costeTotal } = await api.getAgents()
+        // `costeTotal` null = la respuesta no lo traía. No se escribe un cero
+        // en su lugar: el saludo del WebSocket puede traerlo, y un cero
+        // inventado se vería igual que un cero medido en la cabecera.
+        set(costeTotal === null
+          ? { agents: agentes }
+          : { agents: agentes, totalCost: costeTotal })
+      } catch (e) {
+        console.error('[CrewStore] no pude leer los agentes:', e)
+      }
 
-      // Setup WebSocket — base URL from env (supports Tailscale remote access)
-      const WS_BASE = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8000'
-      const WS_URL = `${WS_BASE}/ws`
-      const ws = new WebSocket(WS_URL)
+      // El WebSocket, por `wsUrl()` y no a mano.
+      //
+      // Aquí se armaba la URL con `${VITE_WS_BASE}/ws` SIN TOKEN, y el backend
+      // autentica /ws desde el 1-oct: cerraba cada conexión con 1008 y la
+      // interfaz mostraba «Connection Error» sin causa. `services/wsUrl.ts`
+      // existía y hacía lo correcto, pero sólo lo usaban useWebSocket.ts y
+      // websocketService.ts, que no los importa NADIE. El arreglo estaba
+      // escrito en el camino que no se ejecuta — el mismo defecto que vengo
+      // persiguiendo, cometido al arreglarlo.
+      const ws = new WebSocket(wsUrl('/ws'))
 
       ws.onmessage = (event: MessageEvent) => {
         try {
@@ -110,15 +140,42 @@ export const useCrewStore = create<CrewState>((set, get) => ({
           const { type, agent, decision, actualCost, responseTime } = message
 
           switch (type) {
-            case 'initial_state':
-              // Initial state from backend
+            // Los dos puntos de entrada hablan vocabularios distintos y el
+            // frontend escuchaba el del que NO arranca: `src/main.py` manda
+            // «initial_state» con los agentes en la raíz, y
+            // `routers/websocket.py` —lo que sirve PM2— manda «init» con los
+            // agentes dentro de `data`. El mensaje llegaba, no encajaba con
+            // ningún caso, y el estado se quedaba en «Connecting…» para
+            // siempre: socket abierto, autenticado y la pantalla diciendo que
+            // no. Se aceptan los dos.
+            case 'init':
+            case 'initial_state': {
+              const crudos: any[] = Array.isArray(message.agents)
+                ? message.agents
+                : Array.isArray(message.data?.agents) ? message.data.agents : []
+              if (!crudos.length) {
+                console.warn(
+                  '[CrewStore] el saludo del WebSocket no traía agentes:',
+                  message)
+              }
+              const agentes = crudos.map((a: any) => ({
+                id: String(a.id ?? ''),
+                name: String(a.name ?? ''),
+                model: String(a.model ?? ''),
+                status: (a.status ?? 'idle') as Agent['status'],
+                tasksCompleted: Number(a.tasksCompleted ?? a.tasks_completed ?? 0),
+                totalCost: Number(a.totalCost ?? a.cost ?? 0),
+                lastResponseTime: Number(a.lastResponseTime ?? a.last_response_time ?? 0),
+                lastUpdate: String(a.lastUpdate ?? a.last_update ?? ''),
+              })) as Agent[]
               set({
-                agents: message.agents,
-                totalCost: message.agents.reduce((sum: number, a: Agent) => sum + (a.totalCost || 0), 0),
+                agents: agentes,
+                totalCost: agentes.reduce((sum, a) => sum + (a.totalCost || 0), 0),
                 connectionStatus: 'connected'
               })
-              console.log('[CrewStore] Initial state loaded from backend')
+              console.log(`[CrewStore] estado inicial por «${type}»: ${agentes.length} agentes`)
               break
+            }
 
             case 'agent_status_changed':
               // Agent status changed (running/idle/paused)
@@ -182,7 +239,23 @@ export const useCrewStore = create<CrewState>((set, get) => ({
         }
       }
 
-      ws.onclose = () => set({ connectionStatus: 'disconnected' })
+      ws.onclose = (evento: CloseEvent) => {
+        // 1008 = el backend rechazó el token. Decirlo importa: sin esto, un
+        // problema de configuración se lee como un problema de red, que es
+        // exactamente lo que pasó durante un día entero.
+        if (evento.code === 1008) {
+          console.error(
+            '[CrewStore] el backend rechazó la conexión (1008). ' +
+            (hasWsToken
+              ? 'El VITE_WS_TOKEN configurado no es válido para la clave de ' +
+                'firma del backend.'
+              : 'No hay VITE_WS_TOKEN: acúñalo con ' +
+                'python backend/scripts/issue_ws_token.py'))
+          set({ connectionStatus: 'error' })
+          return
+        }
+        set({ connectionStatus: 'disconnected' })
+      }
       ws.onerror = () => set({ connectionStatus: 'error' })
 
     } catch (error) {

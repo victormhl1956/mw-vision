@@ -7,6 +7,7 @@
 
 import { Zap, Target, DollarSign, Clock, X, ExternalLink } from 'lucide-react'
 import { useCrewStore, type Agent } from '../stores/crewStore'
+import { formatearMomento } from '../utils/formatters'
 import { useState } from 'react'
 
 // Modal Component for Agent Details
@@ -49,7 +50,7 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent; onClose: () => voi
 
           <div className="glass-card p-3 rounded">
             <div className="text-xs text-osint-text-dim">Last Activity</div>
-            <div className="text-sm text-osint-text">{new Date(agent.lastUpdate).toLocaleString()}</div>
+            <div className="text-sm text-osint-text">{formatearMomento(agent.lastUpdate)}</div>
           </div>
         </div>
       </div>
@@ -194,7 +195,7 @@ export default function TeamView() {
                 <div className="flex justify-between items-center">
                   <span className="text-osint-text-dim text-sm">Last Update</span>
                   <span className="text-osint-text-muted text-xs">
-                    {new Date(agent.lastUpdate).toLocaleTimeString()}
+                    {formatearMomento(agent.lastUpdate, true)}
                   </span>
                 </div>
               </div>
